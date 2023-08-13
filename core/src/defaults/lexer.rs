@@ -25,132 +25,197 @@ impl Lexer for DelphiLexer {
 type ContentAndTokenType<'a> = (&'a str, TokenType);
 type WhitespaceAndToken<'a> = (&'a str, ContentAndTokenType<'a>);
 
+const fn pad_right_zero<const N: usize>(bytes: &[u8]) -> [u8; N] {
+    let mut out = [0; N];
+
+    let mut i = 0;
+    while i < N && i < bytes.len() {
+        out[i] = bytes[i];
+        i += 1;
+    }
+
+    out
+}
+
+const fn lower_int_str(i: u128) -> u128 {
+    i | u128::from_be_bytes([0x20; 16])
+}
+
+const fn keyword_to_int(s: &str) -> u128 {
+    /*
+       We need at least one byte of padding to ensure we match the whole word
+       and not just the first 16 bytes.
+    */
+    assert!(s.len() < 16);
+    word_to_int(s)
+}
+
+const fn word_to_int(s: &str) -> u128 {
+    lower_int_str(u128::from_be_bytes(pad_right_zero::<16>(s.as_bytes())))
+}
+
+// Bubble sort is simple enough to be implemented as a const function, and it's
+// plenty fast for our compile-time needs.
+const fn bubble_sort_arr<const N: usize>(
+    mut arr: [(u128, TokenType); N],
+) -> [(u128, TokenType); N] {
+    loop {
+        let mut swapped = false;
+        let mut i = 1;
+        while i < arr.len() {
+            if arr[i - 1].0 > arr[i].0 {
+                let tmp = arr[i - 1];
+                arr[i - 1] = arr[i];
+                arr[i] = tmp;
+                swapped = true;
+            }
+            i += 1;
+        }
+
+        if !swapped {
+            break;
+        }
+    }
+    arr
+}
+
+macro_rules! keyword_int_array {
+    [$(($e: expr, $t: expr $(,)?)),* $(,)?] => {
+        bubble_sort_arr([$((keyword_to_int($e), $t)),*])
+    };
+}
+
+const KEYWORDS: [(u128, TokenType); 123] = keyword_int_array![
+    ("absolute", IdentifierOrKeyword(Absolute)),
+    ("abstract", IdentifierOrKeyword(Abstract)),
+    ("add", IdentifierOrKeyword(Add)),
+    ("align", IdentifierOrKeyword(Align)),
+    ("and", Keyword(And)),
+    ("array", Keyword(Array)),
+    ("as", Keyword(As)),
+    ("asm", Keyword(Asm)),
+    ("assembler", IdentifierOrKeyword(Assembler)),
+    ("at", IdentifierOrKeyword(At)),
+    ("automated", IdentifierOrKeyword(Automated)),
+    ("begin", Keyword(Begin)),
+    ("case", Keyword(Case)),
+    ("cdecl", IdentifierOrKeyword(Cdecl)),
+    ("class", Keyword(Class)),
+    ("const", Keyword(Const)),
+    ("constructor", Keyword(Constructor)),
+    ("contains", IdentifierOrKeyword(Contains)),
+    ("default", IdentifierOrKeyword(Default)),
+    ("delayed", IdentifierOrKeyword(Delayed)),
+    ("deprecated", IdentifierOrKeyword(Deprecated),),
+    ("destructor", Keyword(Destructor)),
+    ("dispid", IdentifierOrKeyword(DispId)),
+    ("dispinterface", Keyword(DispInterface)),
+    ("div", Keyword(Div)),
+    ("do", Keyword(Do)),
+    ("downto", Keyword(Downto)),
+    ("dynamic", IdentifierOrKeyword(Dynamic)),
+    ("else", Keyword(KeywordKind::Else)),
+    ("end", Keyword(End)),
+    ("except", Keyword(Except)),
+    ("experimental", IdentifierOrKeyword(Experimental),),
+    ("export", IdentifierOrKeyword(Export)),
+    ("exports", Keyword(Exports)),
+    ("external", IdentifierOrKeyword(External)),
+    ("far", IdentifierOrKeyword(Far)),
+    ("file", Keyword(File)),
+    ("final", IdentifierOrKeyword(Final)),
+    ("finalization", Keyword(Finalization)),
+    ("finally", Keyword(Finally)),
+    ("for", Keyword(For)),
+    ("forward", IdentifierOrKeyword(Forward)),
+    ("function", Keyword(Function)),
+    ("goto", Keyword(Goto)),
+    ("helper", IdentifierOrKeyword(Helper)),
+    ("if", Keyword(KeywordKind::If)),
+    ("implementation", Keyword(Implementation)),
+    ("implements", IdentifierOrKeyword(Implements),),
+    ("in", Keyword(In)),
+    ("index", IdentifierOrKeyword(Index)),
+    ("inherited", Keyword(Inherited)),
+    ("initialization", Keyword(Initialization)),
+    ("inline", Keyword(Inline)),
+    ("interface", Keyword(Interface)),
+    ("is", Keyword(Is)),
+    ("label", Keyword(Label)),
+    ("library", Keyword(Library)),
+    ("local", IdentifierOrKeyword(Local)),
+    ("message", IdentifierOrKeyword(Message)),
+    ("mod", Keyword(Mod)),
+    ("name", IdentifierOrKeyword(Name)),
+    ("near", IdentifierOrKeyword(Near)),
+    ("nil", Keyword(Nil)),
+    ("nodefault", IdentifierOrKeyword(NoDefault)),
+    ("not", Keyword(Not)),
+    ("object", Keyword(Object)),
+    ("of", Keyword(Of)),
+    ("on", IdentifierOrKeyword(On)),
+    ("operator", IdentifierOrKeyword(Operator)),
+    ("or", Keyword(Or)),
+    ("out", IdentifierOrKeyword(Out)),
+    ("overload", IdentifierOrKeyword(Overload)),
+    ("override", IdentifierOrKeyword(Override)),
+    ("package", IdentifierOrKeyword(Package)),
+    ("packed", Keyword(Packed)),
+    ("pascal", IdentifierOrKeyword(Pascal)),
+    ("platform", IdentifierOrKeyword(Platform)),
+    ("private", IdentifierOrKeyword(Private)),
+    ("procedure", Keyword(Procedure)),
+    ("program", Keyword(Program)),
+    ("property", Keyword(Property)),
+    ("protected", IdentifierOrKeyword(Protected)),
+    ("public", IdentifierOrKeyword(Public)),
+    ("published", IdentifierOrKeyword(Published)),
+    ("raise", Keyword(Raise)),
+    ("read", IdentifierOrKeyword(Read)),
+    ("readonly", IdentifierOrKeyword(ReadOnly)),
+    ("record", Keyword(Record)),
+    ("reference", IdentifierOrKeyword(Reference)),
+    ("register", IdentifierOrKeyword(Register)),
+    ("reintroduce", IdentifierOrKeyword(Reintroduce),),
+    ("remove", IdentifierOrKeyword(Remove)),
+    ("repeat", Keyword(Repeat)),
+    ("requires", IdentifierOrKeyword(Requires)),
+    ("resident", IdentifierOrKeyword(Resident)),
+    ("resourcestring", Keyword(ResourceString)),
+    ("safecall", IdentifierOrKeyword(SafeCall)),
+    ("sealed", IdentifierOrKeyword(Sealed)),
+    ("set", Keyword(Set)),
+    ("shl", Keyword(Shl)),
+    ("shr", Keyword(Shr)),
+    ("static", IdentifierOrKeyword(Static)),
+    ("stdcall", IdentifierOrKeyword(StdCall)),
+    ("stored", IdentifierOrKeyword(Stored)),
+    ("strict", IdentifierOrKeyword(Strict)),
+    ("then", Keyword(Then)),
+    ("threadvar", Keyword(ThreadVar)),
+    ("to", Keyword(To)),
+    ("try", Keyword(Try)),
+    ("type", Keyword(Type)),
+    ("unit", Keyword(Unit)),
+    ("unsafe", IdentifierOrKeyword(Unsafe)),
+    ("until", Keyword(Until)),
+    ("uses", Keyword(Uses)),
+    ("var", Keyword(Var)),
+    ("varargs", IdentifierOrKeyword(VarArgs)),
+    ("variant", IdentifierOrKeyword(Variant)),
+    ("virtual", IdentifierOrKeyword(Virtual)),
+    ("while", Keyword(While)),
+    ("with", Keyword(With)),
+    ("write", IdentifierOrKeyword(Write)),
+    ("writeonly", IdentifierOrKeyword(WriteOnly)),
+    ("xor", Keyword(Xor)),
+];
+
 fn get_word_token_type(input: &str) -> TokenType {
-    match input.to_lowercase().as_str() {
-        "absolute" => IdentifierOrKeyword(Absolute),
-        "abstract" => IdentifierOrKeyword(Abstract),
-        "add" => IdentifierOrKeyword(Add),
-        "align" => IdentifierOrKeyword(Align),
-        "and" => Keyword(And),
-        "array" => Keyword(Array),
-        "as" => Keyword(As),
-        "asm" => Keyword(Asm),
-        "assembler" => IdentifierOrKeyword(Assembler),
-        "at" => IdentifierOrKeyword(At),
-        "automated" => IdentifierOrKeyword(Automated),
-        "begin" => Keyword(Begin),
-        "case" => Keyword(Case),
-        "cdecl" => IdentifierOrKeyword(Cdecl),
-        "class" => Keyword(Class),
-        "const" => Keyword(Const),
-        "constructor" => Keyword(Constructor),
-        "contains" => IdentifierOrKeyword(Contains),
-        "default" => IdentifierOrKeyword(Default),
-        "delayed" => IdentifierOrKeyword(Delayed),
-        "deprecated" => IdentifierOrKeyword(Deprecated),
-        "destructor" => Keyword(Destructor),
-        "dispid" => IdentifierOrKeyword(DispId),
-        "dispinterface" => Keyword(DispInterface),
-        "div" => Keyword(Div),
-        "do" => Keyword(Do),
-        "downto" => Keyword(Downto),
-        "dynamic" => IdentifierOrKeyword(Dynamic),
-        "else" => Keyword(KeywordKind::Else),
-        "end" => Keyword(End),
-        "except" => Keyword(Except),
-        "experimental" => IdentifierOrKeyword(Experimental),
-        "export" => IdentifierOrKeyword(Export),
-        "exports" => Keyword(Exports),
-        "external" => IdentifierOrKeyword(External),
-        "far" => IdentifierOrKeyword(Far),
-        "file" => Keyword(File),
-        "final" => IdentifierOrKeyword(Final),
-        "finalization" => Keyword(Finalization),
-        "finally" => Keyword(Finally),
-        "for" => Keyword(For),
-        "forward" => IdentifierOrKeyword(Forward),
-        "function" => Keyword(Function),
-        "goto" => Keyword(Goto),
-        "helper" => IdentifierOrKeyword(Helper),
-        "if" => Keyword(KeywordKind::If),
-        "implementation" => Keyword(Implementation),
-        "implements" => IdentifierOrKeyword(Implements),
-        "in" => Keyword(In),
-        "index" => IdentifierOrKeyword(Index),
-        "inherited" => Keyword(Inherited),
-        "initialization" => Keyword(Initialization),
-        "inline" => Keyword(Inline),
-        "interface" => Keyword(Interface),
-        "is" => Keyword(Is),
-        "label" => Keyword(Label),
-        "library" => Keyword(Library),
-        "local" => IdentifierOrKeyword(Local),
-        "message" => IdentifierOrKeyword(Message),
-        "mod" => Keyword(Mod),
-        "name" => IdentifierOrKeyword(Name),
-        "near" => IdentifierOrKeyword(Near),
-        "nil" => Keyword(Nil),
-        "nodefault" => IdentifierOrKeyword(NoDefault),
-        "not" => Keyword(Not),
-        "object" => Keyword(Object),
-        "of" => Keyword(Of),
-        "on" => IdentifierOrKeyword(On),
-        "operator" => IdentifierOrKeyword(Operator),
-        "or" => Keyword(Or),
-        "out" => IdentifierOrKeyword(Out),
-        "overload" => IdentifierOrKeyword(Overload),
-        "override" => IdentifierOrKeyword(Override),
-        "package" => IdentifierOrKeyword(Package),
-        "packed" => Keyword(Packed),
-        "pascal" => IdentifierOrKeyword(Pascal),
-        "platform" => IdentifierOrKeyword(Platform),
-        "private" => IdentifierOrKeyword(Private),
-        "procedure" => Keyword(Procedure),
-        "program" => Keyword(Program),
-        "property" => Keyword(Property),
-        "protected" => IdentifierOrKeyword(Protected),
-        "public" => IdentifierOrKeyword(Public),
-        "published" => IdentifierOrKeyword(Published),
-        "raise" => Keyword(Raise),
-        "read" => IdentifierOrKeyword(Read),
-        "readonly" => IdentifierOrKeyword(ReadOnly),
-        "record" => Keyword(Record),
-        "reference" => IdentifierOrKeyword(Reference),
-        "register" => IdentifierOrKeyword(Register),
-        "reintroduce" => IdentifierOrKeyword(Reintroduce),
-        "remove" => IdentifierOrKeyword(Remove),
-        "repeat" => Keyword(Repeat),
-        "requires" => IdentifierOrKeyword(Requires),
-        "resident" => IdentifierOrKeyword(Resident),
-        "resourcestring" => Keyword(ResourceString),
-        "safecall" => IdentifierOrKeyword(SafeCall),
-        "sealed" => IdentifierOrKeyword(Sealed),
-        "set" => Keyword(Set),
-        "shl" => Keyword(Shl),
-        "shr" => Keyword(Shr),
-        "static" => IdentifierOrKeyword(Static),
-        "stdcall" => IdentifierOrKeyword(StdCall),
-        "stored" => IdentifierOrKeyword(Stored),
-        "strict" => IdentifierOrKeyword(Strict),
-        "then" => Keyword(Then),
-        "threadvar" => Keyword(ThreadVar),
-        "to" => Keyword(To),
-        "try" => Keyword(Try),
-        "type" => Keyword(Type),
-        "unit" => Keyword(Unit),
-        "unsafe" => IdentifierOrKeyword(Unsafe),
-        "until" => Keyword(Until),
-        "uses" => Keyword(Uses),
-        "var" => Keyword(Var),
-        "varargs" => IdentifierOrKeyword(VarArgs),
-        "variant" => IdentifierOrKeyword(Variant),
-        "virtual" => IdentifierOrKeyword(Virtual),
-        "while" => Keyword(While),
-        "with" => Keyword(With),
-        "write" => IdentifierOrKeyword(Write),
-        "writeonly" => IdentifierOrKeyword(WriteOnly),
-        "xor" => Keyword(Xor),
-        _ => Identifier,
+    if let Ok(pos) = KEYWORDS.binary_search_by_key(&&word_to_int(input), |(word, _)| word) {
+        KEYWORDS[pos].1
+    } else {
+        Identifier
     }
 }
 
