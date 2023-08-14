@@ -222,37 +222,6 @@ fn get_word_token_type(input: &str) -> TokenType {
     }
 }
 
-fn get_operator_token_type(input: &str) -> TokenType {
-    match input {
-        "+" => Op(Plus),
-        "-" => Op(Minus),
-        "*" => Op(Star),
-        "/" => Op(Slash),
-        ":=" => Op(Assign),
-        "," => Op(Comma),
-        ";" => Op(Semicolon),
-        ":" => Op(Colon),
-        "=" => Op(Equal),
-        "<>" => Op(NotEqual),
-        "<" => Op(LessThan),
-        "<=" => Op(LessEqual),
-        ">" => Op(GreaterThan),
-        ">=" => Op(GreaterEqual),
-        "(." => Op(LBrack),
-        ".)" => Op(RBrack),
-        "[" => Op(LBrack),
-        "]" => Op(RBrack),
-        "(" => Op(LParen),
-        ")" => Op(RParen),
-        "^" => Op(Pointer),
-        "@" => Op(AddressOf),
-        "." => Op(Dot),
-        ".." => Op(DotDot),
-
-        _ => panic!("Unknown operator token {}", input),
-    }
-}
-
 fn is_newline(input: char) -> bool {
     input == '\n' || input == '\r'
 }
@@ -569,39 +538,42 @@ fn line_comment(input: &str) -> IResult<&str, ContentAndTokenType> {
 }
 
 fn operator(input: &str) -> IResult<&str, ContentAndTokenType> {
-    map(
-        alt((
-            alt((
-                tag("+"),
-                tag("-"),
-                tag("*"),
-                tag("/"),
-                tag(":="),
-                tag(","),
-                tag(";"),
-                tag(":"),
-                tag("="),
-                tag("<>"),
-                tag("<="),
-                tag("<"),
-                tag(">="),
-            )),
-            alt((
-                tag(">"),
-                tag("(."),
-                tag(".)"),
-                tag("["),
-                tag("]"),
-                tag("("),
-                tag(")"),
-                tag("^"),
-                tag("@"),
-                tag(".."),
-                tag("."),
-            )),
-        )),
-        |token| (token, get_operator_token_type(token)),
-    )(input)
+    let bytes = &mut input.bytes();
+
+    let (count, op_type) = match bytes.next() {
+        Some(c) => match c {
+            b'+' => (1, Op(Plus)),
+            b'-' => (1, Op(Minus)),
+            b'*' => (1, Op(Star)),
+            b'/' => (1, Op(Slash)),
+            b',' => (1, Op(Comma)),
+            b';' => (1, Op(Semicolon)),
+            b'=' => (1, Op(Equal)),
+            b'^' => (1, Op(Pointer)),
+            b'@' => (1, Op(AddressOf)),
+            b'[' => (1, Op(LBrack)),
+            b']' => (1, Op(RBrack)),
+            b')' => (1, Op(RParen)),
+            _ => match (c, bytes.next()) {
+                (b':', Some(b'=')) => (2, Op(Assign)),
+                (b':', _) => (1, Op(Colon)),
+                (b'<', Some(b'>')) => (2, Op(NotEqual)),
+                (b'<', Some(b'=')) => (2, Op(LessEqual)),
+                (b'<', _) => (1, Op(LessThan)),
+                (b'>', Some(b'=')) => (2, Op(GreaterEqual)),
+                (b'>', _) => (1, Op(GreaterThan)),
+                (b'(', Some(b'.')) => (2, Op(LBrack)),
+                (b'(', _) => (1, Op(LParen)),
+                (b'.', Some(b'.')) => (2, Op(DotDot)),
+                (b'.', Some(b')')) => (2, Op(RBrack)),
+                (b'.', _) => (1, Op(Dot)),
+                _ => return fail(input),
+            },
+        },
+        _ => return fail(input),
+    };
+
+    Ok((&input[count..], (&input[..count], op_type)))
 }
 
 fn whitespace_and_token(input: &str) -> IResult<&str, WhitespaceAndToken> {
