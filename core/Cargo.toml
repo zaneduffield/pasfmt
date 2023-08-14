@@ -18,3 +18,6 @@ rand = "0.8.5"
 [[bench]]
 name = "benchmark_lexer"
 harness = false
+
+[lib]
+bench = false

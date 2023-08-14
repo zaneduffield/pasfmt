@@ -17,3 +17,6 @@ criterion = { version = "0.5.1", features = ["html_reports"] }
 [[bench]]
 name = "benchmark_submodules"
 harness = false
+
+[lib]
+bench = false
