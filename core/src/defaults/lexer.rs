@@ -1,3 +1,5 @@
+use std::ops::RangeTo;
+
 use crate::lang::ConditionalDirectiveKind::*;
 use crate::lang::KeywordKind::*;
 use crate::lang::NumberLiteralKind::*;
@@ -11,7 +13,8 @@ use nom::branch::*;
 use nom::bytes::complete::*;
 use nom::character::complete::*;
 use nom::combinator::*;
-use nom::multi::*;
+use nom::error::ErrorKind;
+use nom::error::ParseError;
 use nom::sequence::*;
 use nom::*;
 
@@ -292,12 +295,54 @@ fn binary_digit(input: &str) -> IResult<&str, char> {
     alt((char('0'), char('1')))(input)
 }
 
+fn recognize_many0<I: Clone + Offset + Slice<RangeTo<usize>>, O, E: ParseError<I>, F>(
+    mut parser: F,
+) -> impl FnMut(I) -> IResult<I, I, E>
+where
+    F: Parser<I, O, E>,
+{
+    move |input: I| {
+        let mut i = input.clone();
+        let mut index = 0;
+        while let Ok((new_i, _)) = parser.parse(i.clone()) {
+            index = input.offset(&i);
+            i = new_i;
+        }
+        Ok((i, input.slice(..index)))
+    }
+}
+
+fn recognize_many1<I: Clone + Offset + Slice<RangeTo<usize>>, O, E: ParseError<I>, F>(
+    mut parser: F,
+) -> impl FnMut(I) -> IResult<I, I, E>
+where
+    F: Parser<I, O, E>,
+{
+    move |input: I| {
+        let mut i = input.clone();
+        match parser.parse(i.clone()) {
+            Err(Err::Error(err)) => Err(Err::Error(E::append(i, ErrorKind::Many1, err))),
+            Err(e) => Err(e),
+            Ok((new_i, _)) => {
+                let mut index = input.offset(&i);
+                i = new_i;
+
+                while let Ok((new_i, _)) = parser.parse(i.clone()) {
+                    index = input.offset(&i);
+                    i = new_i;
+                }
+                Ok((i, input.slice(..index)))
+            }
+        }
+    }
+}
+
 fn binary_digit_sequence(input: &str) -> IResult<&str, &str> {
-    recognize(many0(alt((binary_digit, char('_')))))(input)
+    recognize_many0(alt((binary_digit, char('_'))))(input)
 }
 
 fn digit_sequence(input: &str) -> IResult<&str, &str> {
-    recognize(tuple((digit1, many0(alt((digit1, tag("_")))))))(input)
+    recognize(tuple((digit1, recognize_many0(alt((digit1, tag("_")))))))(input)
 }
 
 fn escaped_character(input: &str) -> IResult<&str, &str> {
@@ -314,7 +359,7 @@ fn escaped_character(input: &str) -> IResult<&str, &str> {
 fn identifier(input: &str) -> IResult<&str, &str> {
     recognize(pair(
         alt((alpha1, tag("_"))),
-        many0_count(alt((alphanumeric1, tag("_")))),
+        recognize_many0(alt((alphanumeric1, tag("_")))),
     ))(input)
 }
 
@@ -329,7 +374,7 @@ fn identifier_or_keyword(input: &str) -> IResult<&str, &str> {
 fn quoted_string(input: &str) -> IResult<&str, &str> {
     delimited(
         tag("'"),
-        recognize(many0(alt((is_not("'"), tag("''"))))),
+        recognize_many0(alt((is_not("'"), tag("''")))),
         tag("'"),
     )(input)
 }
@@ -344,16 +389,17 @@ fn eof_token(input: &str) -> IResult<&str, WhitespaceAndToken> {
 }
 
 fn asm_label(input: &str) -> IResult<&str, ContentAndTokenType> {
-    map(recognize(tuple((many1(char('@')), identifier))), |text| {
-        (text, TokenType::Identifier)
-    })(input)
+    map(
+        recognize(tuple((recognize_many1(char('@')), identifier))),
+        |text| (text, TokenType::Identifier),
+    )(input)
 }
 
 fn quoted_asm_string(input: &str) -> IResult<&str, &str> {
     delimited(
         tag("\""),
         // inline assembly escapes double quotes using backslashes
-        recognize(many0(alt((tag("\\\""), is_not("\""))))),
+        recognize_many0(alt((tag("\\\""), is_not("\"")))),
         tag("\""),
     )(input)
 }
@@ -416,12 +462,12 @@ fn text_literal(input: &str) -> IResult<&str, ContentAndTokenType> {
         alt((
             recognize(tuple((
                 quoted_string,
-                many0(tuple((many1(escaped_character), quoted_string))),
-                many0(escaped_character),
+                recognize_many0(tuple((recognize_many1(escaped_character), quoted_string))),
+                recognize_many0(escaped_character),
             ))),
             recognize(tuple((
-                many1(escaped_character),
-                many0(tuple((quoted_string, many1(escaped_character)))),
+                recognize_many1(escaped_character),
+                recognize_many0(tuple((quoted_string, recognize_many1(escaped_character)))),
                 opt(quoted_string),
             ))),
         )),
