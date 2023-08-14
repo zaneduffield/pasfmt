@@ -12,3 +12,9 @@ log = "0.4"
 spectral = "0.6.0"
 indoc = "2.0.1"
 yare = "1.0.2"
+criterion = { version = "0.5.1", features = ["html_reports"] }
+rand = "0.8.5"
+
+[[bench]]
+name = "benchmark_lexer"
+harness = false
