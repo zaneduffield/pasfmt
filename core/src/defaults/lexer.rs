@@ -260,10 +260,6 @@ fn scale_factor(input: &str) -> IResult<&str, &str> {
     )))(input)
 }
 
-fn binary_digit(input: &str) -> IResult<&str, char> {
-    alt((char('0'), char('1')))(input)
-}
-
 fn recognize_many0<I: Clone + Offset + Slice<RangeTo<usize>>, O, E: ParseError<I>, F>(
     mut parser: F,
 ) -> impl FnMut(I) -> IResult<I, I, E>
@@ -306,12 +302,16 @@ where
     }
 }
 
-fn binary_digit_sequence(input: &str) -> IResult<&str, &str> {
-    recognize_many0(alt((binary_digit, char('_'))))(input)
+fn binary_or_underscore0(input: &str) -> IResult<&str, &str> {
+    input.split_at_position_complete(|item| !matches!(item, '0' | '1' | '_'))
+}
+
+fn digit_or_underscore0(input: &str) -> IResult<&str, &str> {
+    input.split_at_position_complete(|item| !matches!(item, '0'..='9' | '_'))
 }
 
 fn digit_sequence(input: &str) -> IResult<&str, &str> {
-    recognize(tuple((digit1, recognize_many0(alt((digit1, tag("_")))))))(input)
+    recognize(tuple((digit1, digit_or_underscore0)))(input)
 }
 
 fn escaped_character(input: &str) -> IResult<&str, &str> {
@@ -320,7 +320,7 @@ fn escaped_character(input: &str) -> IResult<&str, &str> {
         alt((
             digit_sequence,
             recognize(tuple((char('%'), hex_digit0))),
-            recognize(tuple((char('$'), binary_digit_sequence))),
+            recognize(tuple((char('$'), binary_or_underscore0))),
         )),
     )))(input)
 }
@@ -460,7 +460,7 @@ fn number_literal(input: &str) -> IResult<&str, ContentAndTokenType> {
             |value: &str| (value, NumberLiteral(Hex)),
         ),
         map(
-            recognize(tuple((opt(char('&')), char('$'), binary_digit_sequence))),
+            recognize(tuple((opt(char('&')), char('$'), binary_or_underscore0))),
             |value: &str| (value, NumberLiteral(Binary)),
         ),
     ))(input)
