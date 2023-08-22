@@ -140,6 +140,11 @@ impl<'a> InternalDelphiLogicalLineParser<'a> {
                 Keyword(Property) => {
                     self.parse_property_declaration();
                 }
+                IdentifierOrKeyword(Private | Protected | Public | Published | Automated) => {
+                    self.add_logical_line();
+                    self.next_token();
+                    self.add_logical_line();
+                }
                 Op(Semicolon) => {
                     self.next_token();
                     self.add_logical_line();
@@ -239,6 +244,20 @@ impl<'a> InternalDelphiLogicalLineParser<'a> {
                     self.next_token();
                     self.add_logical_line();
                     return;
+                }
+                Keyword(Class) => {
+                    // If class is the first token in the line, allow the next
+                    // token to dictate how it will be parsed.
+                    self.next_token();
+                }
+                Keyword(Property) => {
+                    self.parse_property_declaration();
+                    return;
+                }
+                IdentifierOrKeyword(Private | Protected | Public | Published | Automated) => {
+                    self.add_logical_line();
+                    self.next_token();
+                    self.add_logical_line();
                 }
                 Keyword(Uses) => {
                     self.add_logical_line();
@@ -1016,6 +1035,21 @@ mod tests {
 
     #[test]
     fn class_property_declaration() {
+        run_test(
+            "published property Foo",
+            vec![
+                LogicalLine::new(None, 0, vec![0], LogicalLineType::Unknown),
+                LogicalLine::new(None, 0, vec![1, 2], LogicalLineType::PropertyDeclaration),
+            ],
+        );
+        run_test(
+            "strict private property Foo",
+            vec![
+                LogicalLine::new(None, 0, vec![0], LogicalLineType::Unknown),
+                LogicalLine::new(None, 0, vec![1], LogicalLineType::Unknown),
+                LogicalLine::new(None, 0, vec![2, 3], LogicalLineType::PropertyDeclaration),
+            ],
+        );
         run_test(
             "class property Foo;",
             vec![LogicalLine::new(
