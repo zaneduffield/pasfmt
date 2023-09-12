@@ -33,8 +33,9 @@ impl TokenConsolidator for DistinguishGenericTypeParamsConsolidator {
                     Some(
                         TokenType::Identifier
                         | TokenType::IdentifierOrKeyword(_)
-                        | TokenType::Op(OperatorKind::Colon)
-                        | TokenType::Op(OperatorKind::Dot)
+                        | TokenType::Op(
+                            OperatorKind::Dot | OperatorKind::Colon | OperatorKind::Semicolon,
+                        )
                         | TokenType::CompilerDirective
                         | TokenType::Comment(_)
                         | TokenType::ConditionalDirective(_)
@@ -141,7 +142,8 @@ mod tests {
         run_test_unchanged(&[ID, AND, CompilerDirective]);
         run_test_unchanged(&[ID, GT, ID]);
         run_test_unchanged(&[ID, LT, LP, ID, GT, ID, RP]);
-        run_test_unchanged(&[ID, LT, SEMI, ID, GT, ID]);
+        // A < B, C > D
+        run_test_unchanged(&[ID, LT, ID, COM, ID, GT, ID]);
     }
 
     #[test]
@@ -172,6 +174,15 @@ mod tests {
             &[
                 ID, LG, ID, LG, ID, COM, ID, RG, COM, ID, COM, ID, LG, ID, RG, RG,
             ],
+        );
+    }
+
+    #[test]
+    fn multi_element_type_list_declaration() {
+        // A<B: C; D: E>
+        run_test(
+            &[ID, LT, ID, COL, ID, SEMI, ID, COL, ID, GT],
+            &[ID, LG, ID, COL, ID, SEMI, ID, COL, ID, RG],
         );
     }
 
