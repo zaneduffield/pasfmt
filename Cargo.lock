@@ -806,6 +806,7 @@ dependencies = [
  "config",
  "encoding_rs",
  "glob",
+ "ignore",
  "indoc",
  "log",
  "pasfmt-core",

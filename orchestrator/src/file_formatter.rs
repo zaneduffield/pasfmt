@@ -10,9 +10,9 @@ use std::{
 };
 
 use glob::glob;
+use ignore::{overrides::OverrideBuilder, WalkBuilder};
 use pasfmt_core::formatter::Formatter;
 use rayon::prelude::*;
-use walkdir::WalkDir;
 
 use crate::ErrHandler;
 
@@ -37,24 +37,32 @@ impl FileFormatter {
     }
 
     fn expand_paths<S: AsRef<str>>(&self, paths: &[S]) -> Vec<Result<PathBuf, anyhow::Error>> {
-        let mut expanded_paths = vec![];
+        let mut expanded_paths: Vec<Result<PathBuf, anyhow::Error>> = vec![];
         paths.iter().map(AsRef::as_ref).for_each(|path_str| {
             let path = Path::new(path_str);
             match path.metadata() {
-                Ok(metadata) if metadata.is_dir() => {
-                    expanded_paths.extend(WalkDir::new(path_str).into_iter().filter_map(|entry| {
-                        match entry {
-                            Ok(entry) => {
-                                let file_path = entry.path();
-                                match formattable_file_path(file_path) {
-                                    true => Some(Ok(file_path.to_path_buf())),
-                                    false => None,
-                                }
+                Ok(metadata) if metadata.is_dir() => expanded_paths.extend(
+                    WalkBuilder::new(path_str)
+                        .overrides(
+                            OverrideBuilder::new(path)
+                                .add("!3rdParty")
+                                .unwrap()
+                                .build()
+                                .unwrap(),
+                        )
+                        .build()
+                        .filter_map(|entry| {
+                            let entry = match entry.context("dir error") {
+                                Ok(entry) => entry,
+                                Err(e) => return Some(Err(e)),
+                            };
+                            let file_path = entry.path();
+                            match formattable_file_path(file_path) {
+                                true => Some(Ok(file_path.to_path_buf())),
+                                false => None,
                             }
-                            Err(e) => Some(Err(e.into())),
-                        }
-                    }));
-                }
+                        }),
+                ),
                 _ if path_str.contains('*') => {
                     match glob(path_str)
                         .with_context(|| format!("invalid glob expression `{path_str}`"))

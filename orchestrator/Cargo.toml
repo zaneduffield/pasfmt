@@ -16,6 +16,7 @@ serde = { workspace = true }
 config = { workspace = true, features = ["toml"] }
 anyhow = { workspace = true }
 anstyle = { workspace = true }
+ignore = "0.4.22"
 
 [dev-dependencies]
 yare = { workspace = true }
