@@ -1,4 +1,3 @@
-#![forbid(unsafe_code)]
 #![deny(clippy::enum_glob_use)]
 
 pub mod command_line;

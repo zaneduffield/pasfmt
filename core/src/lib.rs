@@ -5,6 +5,7 @@ pub mod defaults;
 pub mod formatter;
 pub mod formatter_selector;
 pub mod lang;
+pub mod logging;
 pub mod rules;
 pub mod test_utils;
 pub mod traits;
@@ -14,6 +15,7 @@ pub mod prelude {
     pub use crate::formatter::*;
     pub use crate::formatter_selector::*;
     pub use crate::lang::*;
+    pub use crate::logging::*;
     pub use crate::rules::*;
     pub use crate::traits::*;
 

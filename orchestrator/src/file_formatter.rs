@@ -13,6 +13,7 @@ use std::{
 use glob::glob;
 use pasfmt_core::{
     formatter::Formatter,
+    logging::{LogContext, LOG_CONTEXT},
     prelude::{Cursor, FileOptions},
 };
 use rayon::prelude::*;
@@ -156,17 +157,25 @@ impl FileFormatter {
 
                 debug!("Formatting {}", file_path.display());
                 let time = Instant::now();
-                let output = self.formatter.format(
-                    &decoded_file.contents,
-                    FileOptions::new().with_cursors(&mut inner_cursors),
-                );
-                debug!("Formatted {} in {:?}", file_path.display(), time.elapsed());
+                LOG_CONTEXT.set(
+                    LogContext {
+                        path: &file_path,
+                        file_contents: &decoded_file.contents,
+                    },
+                    || {
+                        let output = self.formatter.format(
+                            &decoded_file.contents,
+                            FileOptions::new().with_cursors(&mut inner_cursors),
+                        );
+                        debug!("Formatted {} in {:?}", file_path.display(), time.elapsed());
 
-                if !inner_cursors.is_empty() {
-                    Self::output_new_cursors(&inner_cursors);
-                }
+                        if !inner_cursors.is_empty() {
+                            Self::output_new_cursors(&inner_cursors);
+                        }
 
-                result_operation(&mut file, &file_path, &decoded_file, &output)
+                        result_operation(&mut file, &file_path, &decoded_file, &output)
+                    },
+                )
             })
             .for_each(|res| {
                 if let Err(e) = res {

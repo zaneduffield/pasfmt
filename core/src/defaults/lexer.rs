@@ -7,6 +7,7 @@ use crate::lang::OperatorKind as OK;
 use crate::lang::RawTokenType as TT;
 use crate::lang::TextLiteralKind as TLK;
 use crate::lang::*;
+use crate::prelude::pasfmt_log;
 use crate::traits::Lexer;
 
 use log::*;
@@ -31,6 +32,8 @@ struct LexedToken<'a> {
 }
 
 fn lex_complete(input: &str) -> Vec<RawToken> {
+    pasfmt_log("HERE", Level::Info);
+
     let (remaining, tokens) = lex(input);
 
     // Remaining input is always a programming error; invalid input should turn into 'Unknown' tokens.
