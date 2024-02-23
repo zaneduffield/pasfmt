@@ -1,4 +1,5 @@
-use std::{error::Error, fmt::Display, path::Path, sync::RwLock};
+use core::fmt;
+use std::{error::Error, fmt::Display, sync::RwLock};
 
 use log::{log, Level};
 
@@ -6,18 +7,18 @@ use scoped_tls_hkt::scoped_thread_local;
 
 #[derive(Copy, Clone)]
 pub struct LogContext<'a> {
-    pub path: &'a Path,
+    pub source: &'a str,
     pub data_to_fmt: &'a str,
 }
 
 pub enum FilePos {
-    Raw(usize),
+    Raw { pos: usize, len: usize },
     Token(usize),
     LineCol(usize, usize),
 }
 
 pub struct LogEvent<'a> {
-    pub msg: &'a str,
+    pub args: fmt::Arguments<'a>,
     pub level: Level,
     pub file_pos: Option<FilePos>,
 }
@@ -31,7 +32,7 @@ pub struct PasfmtLogger<'a> {
 }
 
 fn default_log_fn(_ctx: Option<LogContext>, event: LogEvent) {
-    log!(event.level, "{}", event.msg);
+    log!(event.level, "{}", event.args);
 }
 
 static PASFMT_LOG_FN: RwLock<PasfmtLogFn> = RwLock::new(default_log_fn);
@@ -84,26 +85,31 @@ pub fn with_log_context<T>(ctx: LogContext<'_>, f: impl FnMut() -> T) -> T {
 
 #[macro_export]
 macro_rules! pasfmt_log {
+    ($level: expr, pos = $pos: expr, $($arg: expr),*$(,)?) => {
+        // if log_enabled!($level) {
+            $crate::logging::pasfmt_log($level, Some($pos), format_args!($($arg),*));
+        // }
+    };
     ($level: expr, $($arg: expr),*$(,)?) => {
-        if log_enabled!($level) {
-            $crate::logging::pasfmt_log($level, &format!($($arg),*));
-        }
+        // if log_enabled!($level) {
+            $crate::logging::pasfmt_log($level, None, format_args!($($arg),*));
+        // }
     };
 }
 
-pub fn pasfmt_log(level: Level, msg: &str) {
+pub fn pasfmt_log(level: Level, pos: Option<FilePos>, args: fmt::Arguments<'_>) {
     if PASFMT_LOGGER.is_set() {
         PASFMT_LOGGER.with(|log| {
             (log.fun)(
                 log.ctx,
                 LogEvent {
-                    msg,
+                    args,
                     level,
-                    file_pos: None,
+                    file_pos: pos,
                 },
             )
         })
     } else {
-        log!(level, "{}", msg);
+        log!(level, "{}", args);
     }
 }

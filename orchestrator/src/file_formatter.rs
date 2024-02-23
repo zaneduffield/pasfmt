@@ -159,7 +159,7 @@ impl FileFormatter {
                 debug!("Formatting {}", file_path.display());
                 let time = Instant::now();
                 let log_context = LogContext {
-                    path: &file_path,
+                    source: &file_path.to_string_lossy(),
                     data_to_fmt: &decoded_file.contents,
                 };
 

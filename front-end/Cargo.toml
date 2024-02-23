@@ -11,9 +11,10 @@ encoding_rs = { workspace = true, features = ["serde"] }
 pasfmt-core = { path = "../core" }
 pasfmt-orchestrator = { path = "../orchestrator" }
 serde = { workspace = true, features = ["derive"] }
-stderrlog = { workspace = true }
 log = { workspace = true }
 anyhow = { workspace = true }
+codespan-reporting = "0.11.1"
+termcolor = "1.4.1"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true, features = [

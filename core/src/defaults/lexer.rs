@@ -7,7 +7,8 @@ use crate::lang::OperatorKind as OK;
 use crate::lang::RawTokenType as TT;
 use crate::lang::TextLiteralKind as TLK;
 use crate::lang::*;
-use crate::prelude::pasfmt_log;
+use crate::pasfmt_log;
+use crate::prelude::FilePos;
 use crate::traits::Lexer;
 
 use log::*;
@@ -53,7 +54,26 @@ fn lex(mut input: &str) -> (&str, Vec<RawToken>) {
         is_first: true,
         prev_real_token: None,
     };
+    let orig_input = input;
     while let Some((remaining, token)) = whitespace_and_token(input, &mut lex_state) {
+        pasfmt_log!(
+            Level::Info,
+            pos = FilePos::Raw {
+                pos: (input.as_ptr() as usize - orig_input.as_ptr() as usize
+                    + token.whitespace_count),
+                len: token.token_content.len() - token.whitespace_count
+            },
+            "token: {}",
+            token.token_content
+        );
+        // log!(
+        //     Level::Debug,
+        //     "path: {}\n\ncontents: {}\n\nmsg: token: {}",
+        //     &orig_input[..10],
+        //     orig_input,
+        //     token.token_content,
+        // );
+        // log!(Level::Debug, "token: {}", token.token_content);
         tokens.push(to_final_token(token));
         input = remaining;
     }
