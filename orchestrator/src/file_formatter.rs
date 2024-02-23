@@ -11,9 +11,10 @@ use std::{
 };
 
 use glob::glob;
+use pasfmt_core::prelude::*;
 use pasfmt_core::{
     formatter::Formatter,
-    logging::{LogContext, LOG_CONTEXT},
+    logging::LogContext,
     prelude::{Cursor, FileOptions},
 };
 use rayon::prelude::*;
@@ -157,25 +158,24 @@ impl FileFormatter {
 
                 debug!("Formatting {}", file_path.display());
                 let time = Instant::now();
-                LOG_CONTEXT.set(
-                    LogContext {
-                        path: &file_path,
-                        file_contents: &decoded_file.contents,
-                    },
-                    || {
-                        let output = self.formatter.format(
-                            &decoded_file.contents,
-                            FileOptions::new().with_cursors(&mut inner_cursors),
-                        );
-                        debug!("Formatted {} in {:?}", file_path.display(), time.elapsed());
+                let log_context = LogContext {
+                    path: &file_path,
+                    data_to_fmt: &decoded_file.contents,
+                };
 
-                        if !inner_cursors.is_empty() {
-                            Self::output_new_cursors(&inner_cursors);
-                        }
+                with_log_context(log_context, || {
+                    let output = self.formatter.format(
+                        &decoded_file.contents,
+                        FileOptions::new().with_cursors(&mut inner_cursors),
+                    );
+                    debug!("Formatted {} in {:?}", file_path.display(), time.elapsed());
 
-                        result_operation(&mut file, &file_path, &decoded_file, &output)
-                    },
-                )
+                    if !inner_cursors.is_empty() {
+                        Self::output_new_cursors(&inner_cursors);
+                    }
+
+                    result_operation(&mut file, &file_path, &decoded_file, &output)
+                })
             })
             .for_each(|res| {
                 if let Err(e) = res {
