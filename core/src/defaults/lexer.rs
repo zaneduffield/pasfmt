@@ -20,7 +20,8 @@ impl Lexer for DelphiLexer {
     }
 }
 
-struct LexState {
+struct LexState<'a> {
+    orig_input: &'a str,
     is_first: bool,
     in_asm: bool,
     prev_real_token: Option<RawTokenType>,
@@ -50,6 +51,7 @@ fn lex(mut input: &str) -> (&str, Vec<RawToken>) {
     let mut tokens = Vec::with_capacity(input.len() / 8);
 
     let mut lex_state = LexState {
+        orig_input: input,
         in_asm: false,
         is_first: true,
         prev_real_token: None,
@@ -63,8 +65,7 @@ fn lex(mut input: &str) -> (&str, Vec<RawToken>) {
                     + token.whitespace_count),
                 len: token.token_content.len() - token.whitespace_count
             },
-            "token: {}",
-            token.token_content
+            "token is very token",
         );
         // log!(
         //     Level::Debug,
@@ -99,7 +100,7 @@ fn to_final_token(
 
 fn whitespace_and_token<'a>(
     input: &'a str,
-    lex_state: &mut LexState,
+    lex_state: &mut LexState<'a>,
 ) -> Option<(&'a str, LexedToken<'a>)> {
     let whitespace_count = count_leading_whitespace(input);
 
@@ -163,7 +164,7 @@ type OffsetAndTokenType = (usize, RawTokenType);
 struct LexArgs<'a, 'b> {
     input: &'a str,
     offset: usize,
-    lex_state: &'b mut LexState,
+    lex_state: &'b mut LexState<'a>,
 }
 impl LexArgs<'_, '_> {
     fn consume(self, bytes: usize) -> Self {
@@ -1360,9 +1361,15 @@ fn dot(args: LexArgs) -> OffsetAndTokenType {
 
 #[cold]
 fn unknown(args: LexArgs) -> OffsetAndTokenType {
-    warn!(
-        "found unexpected character: {}, creating `Unknown` token",
-        *args.prev_byte().unwrap() as char
+    pasfmt_log!(
+        Level::Warn,
+        pos = FilePos::Raw {
+            pos: (args.input.as_ptr() as usize - args.lex_state.orig_input.as_ptr() as usize
+                + args.offset
+                - 1),
+            len: 1
+        },
+        "unkown token",
     );
     (args.offset, TT::Unknown)
 }

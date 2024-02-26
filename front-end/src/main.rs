@@ -46,15 +46,13 @@ fn main() -> ExitCode {
                     term::emit(&mut writer.lock(), &config, &files, &diag).expect("failed to log");
                     return;
                 }
-                // log!(
-                //     event.level,
-                //     "path: {}\n\ncontents: {}\n\nmsg: {}",
-                //     ctx.path.display(),
-                //     ctx.data_to_fmt,
-                //     event.args,
-                // );
+                eprintln!(
+                    "{}: (source: {}) msg: {}",
+                    event.level, ctx.source, event.args,
+                );
+                return;
             }
-            log::log!(event.level, "{}", event.args);
+            eprintln!("{}: {}", event.level, event.args);
         },
         || {
             let config = Config::create();
