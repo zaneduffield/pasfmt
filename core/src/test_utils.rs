@@ -23,10 +23,11 @@ pub fn default_test_reconstructor() -> DelphiLogicalLinesReconstructor {
     )
 }
 
+#[allow(clippy::cast_possible_truncation)]
 fn ws_len(whitespace_and_content: &str) -> u32 {
     whitespace_and_content
         .bytes()
-        .take_while(|b| b.is_ascii_whitespace())
+        .take_while(u8::is_ascii_whitespace)
         .count() as u32
 }
 

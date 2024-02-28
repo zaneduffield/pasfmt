@@ -1,4 +1,8 @@
-use crate::{lang::*, traits::LogicalLinesReconstructor};
+use crate::{
+    lang::{FormattedTokens, ReconstructionSettings},
+    prelude::TokenData,
+    traits::LogicalLinesReconstructor,
+};
 
 pub struct DelphiLogicalLinesReconstructor {
     reconstruction_settings: ReconstructionSettings,
@@ -22,10 +26,10 @@ impl LogicalLinesReconstructor for DelphiLogicalLinesReconstructor {
                     (0..formatting_data.newlines_before)
                         .for_each(|_| buf.push_str(self.reconstruction_settings.get_newline_str()));
                     (0..formatting_data.indentations_before).for_each(|_| {
-                        buf.push_str(self.reconstruction_settings.get_indentation_str())
+                        buf.push_str(self.reconstruction_settings.get_indentation_str());
                     });
                     (0..formatting_data.continuations_before).for_each(|_| {
-                        buf.push_str(self.reconstruction_settings.get_continuation_str())
+                        buf.push_str(self.reconstruction_settings.get_continuation_str());
                     });
                     (0..formatting_data.spaces_before).for_each(|_| buf.push(' '));
                 };

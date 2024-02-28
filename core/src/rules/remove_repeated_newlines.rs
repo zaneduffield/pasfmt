@@ -1,6 +1,9 @@
 use std::cmp::min;
 
-use crate::{lang::*, traits::LogicalLineFormatter};
+use crate::{
+    lang::{FormattedTokens, LogicalLine},
+    traits::LogicalLineFormatter,
+};
 
 pub struct RemoveRepeatedNewlines {}
 impl LogicalLineFormatter for RemoveRepeatedNewlines {

@@ -103,10 +103,10 @@ mod tests {
         let consolidator = &DistinguishGenericTypeParamsConsolidator {};
         let mut tokens = to_tokens(tokens);
         consolidator.consolidate(&mut tokens);
-        assert_that(&tokens.iter().map(|t| t.get_token_type()).collect_vec()).is_equal_to(
+        assert_that(&tokens.iter().map(Token::get_token_type).collect_vec()).is_equal_to(
             to_tokens(expected_tokens)
                 .iter()
-                .map(|t| t.get_token_type())
+                .map(Token::get_token_type)
                 .collect_vec(),
         );
     }
@@ -155,7 +155,7 @@ mod tests {
     #[test]
     fn type_list_with_dots() {
         // A<B.C>
-        run_test(&[ID, LT, ID, DOT, ID, GT], &[ID, LG, ID, DOT, ID, RG])
+        run_test(&[ID, LT, ID, DOT, ID, GT], &[ID, LG, ID, DOT, ID, RG]);
     }
 
     #[test]
@@ -206,7 +206,7 @@ mod tests {
         const STRING: TokenType = TokenType::Keyword(KeywordKind::String);
 
         // A<String>
-        run_test(&[ID, LT, STRING, GT], &[ID, LG, STRING, RG])
+        run_test(&[ID, LT, STRING, GT], &[ID, LG, STRING, RG]);
     }
 
     #[test]

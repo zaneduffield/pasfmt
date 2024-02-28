@@ -2,8 +2,13 @@ use std::marker::PhantomData;
 
 use fxhash::FxHashSet;
 
-use crate::lang::*;
-use crate::traits::*;
+use crate::lang::{FormattedTokens, FormatterKind, LogicalLine, LogicalLineType, Token};
+use crate::prelude::RawTokenConsolidator;
+use crate::traits::{
+    Lexer, LogicalLineFileFormatter, LogicalLineFormatter, LogicalLineParser,
+    LogicalLinesConsolidator, LogicalLinesReconstructor, TokenConsolidator, TokenIgnorer,
+    TokenRemover,
+};
 
 enum PostParseConsolidatorKind {
     Line(Box<dyn LogicalLinesConsolidator + Sync>),
@@ -13,7 +18,7 @@ impl LogicalLinesConsolidator for PostParseConsolidatorKind {
     fn consolidate(&self, (tokens, lines): (&mut [Token], &mut [LogicalLine])) {
         match self {
             PostParseConsolidatorKind::Line(consolidator) => {
-                consolidator.consolidate((tokens, lines))
+                consolidator.consolidate((tokens, lines));
             }
             PostParseConsolidatorKind::Token(consolidator) => consolidator.consolidate(tokens),
         }
@@ -67,19 +72,19 @@ impl Formatter {
     }
     pub fn format_into_buf(&self, input: &str, buf: &mut String) {
         let mut tokens = self.lexer.lex(input);
-        for token_consolidator in self.token_consolidators.iter() {
+        for token_consolidator in &self.token_consolidators {
             token_consolidator.consolidate(&mut tokens);
         }
         let (mut lines, mut tokens) = self.logical_line_parser.parse(tokens);
-        for line_consolidator in self.post_parse_consolidators.iter() {
+        for line_consolidator in &self.post_parse_consolidators {
             line_consolidator.consolidate((&mut tokens, &mut lines));
         }
         let mut ignored_tokens = TokenMarker::default();
         for token_ignorer in &self.token_ignorers {
-            token_ignorer.ignore_tokens((&tokens, &lines), &mut ignored_tokens)
+            token_ignorer.ignore_tokens((&tokens, &lines), &mut ignored_tokens);
         }
         let mut tokens_marked_for_deletion = TokenMarker::default();
-        for token_remover in self.token_removers.iter() {
+        for token_remover in &self.token_removers {
             token_remover.remove_tokens((&tokens, &lines), &mut tokens_marked_for_deletion);
         }
         if ignored_tokens.any_marked() {
@@ -91,7 +96,7 @@ impl Formatter {
         delete_voided_logical_lines(&mut lines);
 
         let mut formatted_tokens = FormattedTokens::new_from_tokens(&tokens, &ignored_tokens);
-        for formatter in self.logical_line_formatters.iter() {
+        for formatter in &self.logical_line_formatters {
             formatter.format(&mut formatted_tokens, &lines);
         }
         self.reconstructor
@@ -135,9 +140,12 @@ fn delete_marked_tokens(
 
         *tokens = tokens
             .iter()
-            .filter_map(|token_index| match token_marker.is_marked(token_index) {
-                false => Some(new_indices[*token_index]),
-                true => None,
+            .filter_map(|token_index| {
+                if token_marker.is_marked(token_index) {
+                    None
+                } else {
+                    Some(new_indices[*token_index])
+                }
             })
             .collect();
 
@@ -795,15 +803,14 @@ mod tests {
     struct CombineFirst2Lines;
     impl LogicalLinesConsolidator for CombineFirst2Lines {
         fn consolidate(&self, (_, lines): (&mut [Token<'_>], &mut [LogicalLine])) {
-            let (second_non_void_line_index, _) = match lines
+            let Some((second_non_void_line_index, _)) = lines
                 .iter()
                 .enumerate()
                 .filter(|(_, line)| line.get_line_type() != LogicalLineType::Voided)
                 .take(2)
                 .last()
-            {
-                Some(line) => line,
-                _ => return,
+            else {
+                return;
             };
 
             let second_line_tokens = match lines.get_mut(second_non_void_line_index) {

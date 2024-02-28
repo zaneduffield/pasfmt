@@ -1,5 +1,5 @@
-use crate::lang::*;
-use crate::traits::*;
+use crate::lang::{FormattedTokens, LogicalLine, LogicalLineType};
+use crate::traits::LogicalLineFormatter;
 
 pub struct FormatterSelector<'a, T>
 where
@@ -21,7 +21,7 @@ where
 {
     fn format(&self, formatted_tokens: &mut FormattedTokens<'_>, input: &LogicalLine) {
         if let Some(formatter) = (self.selector)(input.get_line_type()) {
-            formatter.format(formatted_tokens, input)
+            formatter.format(formatted_tokens, input);
         }
     }
 }

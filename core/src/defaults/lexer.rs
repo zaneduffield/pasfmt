@@ -1,15 +1,20 @@
 use std::ops::RangeInclusive;
 
+use crate::lang::CaretKind;
+use crate::lang::ChevronKind;
 use crate::lang::ConditionalDirectiveKind as CDK;
+use crate::lang::DeclKind;
+use crate::lang::EqKind;
+use crate::lang::InKind;
 use crate::lang::KeywordKind as KK;
 use crate::lang::NumberLiteralKind as NLK;
 use crate::lang::OperatorKind as OK;
 use crate::lang::RawTokenType as TT;
 use crate::lang::TextLiteralKind as TLK;
-use crate::lang::*;
+use crate::lang::{CommentKind, RawToken, RawTokenType};
 use crate::traits::Lexer;
 
-use log::*;
+use log::{debug, warn};
 
 pub struct DelphiLexer {}
 impl Lexer for DelphiLexer {
@@ -149,7 +154,7 @@ fn count_unicode_whitespace(input: impl Iterator<Item = char>) -> usize {
         // As above for [U+0, U+20].
         // The special case for U+3000 (ideographic space, for Chinese/Japanese/Korean) isn't documented.
         .take_while(|c| *c <= '\u{20}' || *c == '\u{3000}')
-        .map(|c| c.len_utf8())
+        .map(char::len_utf8)
         .sum()
 }
 
@@ -255,12 +260,12 @@ const ASM_LEXER_MAP: [LexerFn; 256] = merge_byte_maps(
 );
 
 fn lex_token(args: LexArgs) -> Option<OffsetAndTokenType> {
-    lex_token_with_map(LEXER_MAP, args)
+    lex_token_with_map(&LEXER_MAP, args)
 }
 
 #[cold]
 fn lex_asm_token(args: LexArgs) -> Option<OffsetAndTokenType> {
-    lex_token_with_map(ASM_LEXER_MAP, args)
+    lex_token_with_map(&ASM_LEXER_MAP, args)
 }
 
 /*
@@ -271,7 +276,7 @@ fn lex_asm_token(args: LexArgs) -> Option<OffsetAndTokenType> {
 
     This approach also lends itself well to efficient inheritance of the different sub-lexers.
 */
-fn lex_token_with_map(map: [LexerFn; 256], args: LexArgs) -> Option<(usize, RawTokenType)> {
+fn lex_token_with_map(map: &[LexerFn; 256], args: LexArgs) -> Option<(usize, RawTokenType)> {
     args.input
         .as_bytes()
         .get(args.offset)
@@ -510,6 +515,8 @@ fn get_word_token_type(input: &str) -> RawTokenType {
     #[expect(clippy::len_zero)]
     const fn hash_keyword(input: &str) -> u16 {
         let bytes = input.as_bytes();
+        // The length of `input` is never longer than a keyword
+        #[allow(clippy::cast_possible_truncation)]
         let mut sum = bytes.len() as u16;
         if bytes.len() >= 3 {
             sum += KEYWORD_ASSO_VALUES[bytes[2] as usize] as u16;
@@ -562,9 +569,12 @@ fn get_word_token_type(input: &str) -> RawTokenType {
 
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
+// All wraps are intentional
+#[allow(clippy::cast_possible_wrap)]
 // SAFETY: callers must ensure avx2 intrinsics are supported.
 unsafe fn find_identifier_end_avx2(input: &str, mut offset: usize) -> usize {
     use core::mem::size_of;
+    #[allow(clippy::wildcard_imports)]
     use std::arch::x86_64::*;
 
     type Chunk = __m256i;
@@ -757,6 +767,7 @@ fn asm_identifier(args: LexArgs) -> OffsetAndTokenType {
 
 // region: literals
 
+#[allow(clippy::too_many_lines)]
 fn text_literal(
     LexArgs {
         input, mut offset, ..
@@ -783,12 +794,12 @@ fn text_literal(
         if let Some(pos) = memchr::memchr3(b'\'', b'\n', b'\r', &bytes[*offset..]) {
             *offset += pos;
             // escaped quotes are handled by the calling of this function in a loop
-            if let Some(b'\'') = bytes.get(*offset) {
+            return if let Some(b'\'') = bytes.get(*offset) {
                 *offset += 1;
-                return ParseState::Continue;
+                ParseState::Continue
             } else {
-                return ParseState::Unterminated;
-            }
+                ParseState::Unterminated
+            };
         }
 
         *offset = bytes.len();
@@ -858,13 +869,15 @@ fn text_literal(
         let start_of_contents = offset + quote_count;
         let quote_used = &input.as_bytes()[offset..start_of_contents];
         return memchr::memmem::find(&input.as_bytes()[start_of_contents..], quote_used)
-            .map(|pos| {
-                (
-                    start_of_contents + pos + quote_count,
-                    TT::TextLiteral(TLK::MultiLine),
-                )
-            })
-            .unwrap_or_else(|| unterminated(input.len()));
+            .map_or_else(
+                || unterminated(input.len()),
+                |pos| {
+                    (
+                        start_of_contents + pos + quote_count,
+                        TT::TextLiteral(TLK::MultiLine),
+                    )
+                },
+            );
     }
 
     loop {
@@ -974,15 +987,15 @@ fn count_matching_char_bytes<F: Fn(&char) -> bool>(input: &str, offset: usize, f
     input[offset..]
         .chars()
         .take_while(|c| f(c))
-        .map(|c| c.len_utf8())
+        .map(char::len_utf8)
         .sum()
 }
 
 fn count_full_decimal(input: &str, offset: usize) -> usize {
-    if input.as_bytes().get(offset) != Some(&b'_') {
-        count_decimal(input, offset)
-    } else {
+    if input.as_bytes().get(offset) == Some(&b'_') {
         0
+    } else {
+        count_decimal(input, offset)
     }
 }
 
@@ -1028,10 +1041,7 @@ fn consume_to_eof(input: &str, token_type: RawTokenType) -> (usize, RawTokenType
 
 // region: directives/comments
 
-fn conditional_directive_type(
-    input: &str,
-    offset: usize,
-) -> (usize, Option<ConditionalDirectiveKind>) {
+fn conditional_directive_type(input: &str, offset: usize) -> (usize, Option<CDK>) {
     let end_offset = offset
         + count_matching(
             input,
@@ -1235,8 +1245,7 @@ fn line_comment(
     };
     (
         memchr::memchr2(b'\n', b'\r', &input.as_bytes()[offset..])
-            .map(|o| o + offset)
-            .unwrap_or(input.len()),
+            .map_or(input.len(), |o| o + offset),
         TT::Comment(kind),
     )
 }
@@ -1374,6 +1383,7 @@ fn eof(input: &str) -> (&str, LexedToken) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::prelude::TokenData;
     use indoc::indoc;
     use spectral::prelude::*;
 
@@ -1405,7 +1415,7 @@ mod tests {
         let lowercase = input.to_ascii_lowercase();
         let uppercase = input.to_ascii_uppercase();
         let alternating = alternating_case(input);
-        let input = format!("{} {} {}", lowercase, uppercase, alternating);
+        let input = format!("{lowercase} {uppercase} {alternating}");
         run_test(
             input.as_str(),
             &[
@@ -1413,7 +1423,7 @@ mod tests {
                 (uppercase.as_str(), expected_token_type),
                 (alternating.as_str(), expected_token_type),
             ],
-        )
+        );
     }
 
     #[test]
@@ -1711,7 +1721,7 @@ mod tests {
                 ("{$if a = #10}", IF_DIRECTIVE),
                 ("{$if a = '''\n}\n'''\n}", IF_DIRECTIVE),
             ],
-        )
+        );
     }
 
     #[test]
@@ -1769,7 +1779,7 @@ mod tests {
                 ("'''''\n'''\n'''''", TT::TextLiteral(TLK::MultiLine)),
                 ("'''''''\n'''\n'''''''", TT::TextLiteral(TLK::MultiLine)),
             ],
-        )
+        );
     }
 
     #[test]
@@ -1802,7 +1812,7 @@ mod tests {
                 // incomplete multiline-line text literal
                 ("'''\n//\n", TT::TextLiteral(TLK::Unterminated)),
             ],
-        )
+        );
     }
 
     #[test]
@@ -2034,6 +2044,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn lex_keywords() {
         [
             ("absolute", TT::IdentifierOrKeyword(KK::Absolute)),
@@ -2646,7 +2657,7 @@ mod tests {
                 // note, does not contain the U+3000 character
                 ( "IDEOGRAPHIC_SPACE", TT::Identifier),
             ],
-        )
+        );
     }
 
     #[test]
@@ -2726,6 +2737,6 @@ mod tests {
                 ("US", TT::Identifier),
                 ("Space", TT::Identifier),
             ],
-        )
+        );
     }
 }

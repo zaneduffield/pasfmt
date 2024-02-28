@@ -1,6 +1,8 @@
 use crate::lang::OperatorKind as OK;
 use crate::lang::TokenType as TT;
-use crate::lang::*;
+use crate::lang::{
+    CommentKind, FormattedTokens, KeywordKind, LogicalLine, OperatorKind, TokenType,
+};
 use crate::prelude::*;
 
 pub struct TokenSpacing {}
@@ -104,6 +106,7 @@ fn one_space_before(
     )
 }
 
+#[allow(clippy::too_many_lines)]
 fn space_operator(
     operator: OperatorKind,
     token_index: usize,
@@ -163,7 +166,7 @@ fn space_operator(
                 _ => binary_op_spacing,
             }
         }
-        OK::Comma | OK::Colon => (Some(0), Some(1)),
+        OK::Comma | OK::Colon | OK::Semicolon => (Some(0), Some(1)),
         OK::RBrack | OK::RParen => match token_type_by_idx(token_index + 1) {
             Some(TT::Identifier | TT::Keyword(_)) => (Some(0), Some(1)),
             _ => (Some(0), Some(0)),
@@ -198,7 +201,6 @@ fn space_operator(
             },
         ),
         OK::AddressOf => one_space_before(token_index, formatted_tokens),
-        OK::Semicolon => (Some(0), Some(1)),
     }
 }
 

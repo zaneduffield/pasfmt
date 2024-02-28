@@ -1,4 +1,7 @@
-use crate::{lang::*, traits::LogicalLineFormatter};
+use crate::{
+    lang::{FormattedTokens, LogicalLine, TokenType},
+    traits::LogicalLineFormatter,
+};
 
 pub struct EofNewline {}
 impl LogicalLineFormatter for EofNewline {

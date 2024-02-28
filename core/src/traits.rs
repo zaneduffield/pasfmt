@@ -1,5 +1,5 @@
 use crate::formatter::TokenMarker;
-use crate::lang::*;
+use crate::lang::{FormattedTokens, LogicalLine, RawToken, Token};
 
 pub trait Lexer {
     fn lex<'a>(&self, input: &'a str) -> Vec<RawToken<'a>>;

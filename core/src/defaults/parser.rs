@@ -1,3 +1,5 @@
+// this file is about to be completely rewritten
+#![allow(clippy::pedantic)]
 /*
     The motivation behind the conditional directive parsing and reparsing is
     the idea of wanting to know the context and contents of the whole line

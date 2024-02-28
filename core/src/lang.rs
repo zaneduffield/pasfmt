@@ -349,7 +349,7 @@ pub enum RawTokenType {
 }
 
 impl RawTokenType {
-    pub(crate) fn is_comment_or_directive(&self) -> bool {
+    pub(crate) fn is_comment_or_directive(self) -> bool {
         matches!(
             self,
             Self::Comment(_) | Self::CompilerDirective | Self::ConditionalDirective(_)
@@ -372,7 +372,7 @@ pub enum TokenType {
 }
 
 impl TokenType {
-    pub(crate) fn is_comment_or_directive(&self) -> bool {
+    pub(crate) fn is_comment_or_directive(self) -> bool {
         matches!(
             self,
             Self::Comment(_) | Self::CompilerDirective | Self::ConditionalDirective(_)
@@ -710,7 +710,7 @@ impl<'a> TokenData for Token<'a> {
     }
 
     fn set_token_type(&mut self, typ: TokenType) {
-        self.token_type = typ
+        self.token_type = typ;
     }
 }
 impl<'a> From<RawToken<'a>> for Token<'a> {
@@ -721,9 +721,8 @@ impl<'a> From<RawToken<'a>> for Token<'a> {
             val.content,
             val.ws_len,
             match val.token_type {
-                RTT::IdentifierOrKeyword(_) => TT::Identifier,
+                RTT::IdentifierOrKeyword(_) | RTT::Identifier => TT::Identifier,
                 RTT::Op(op_kind) => TT::Op(op_kind),
-                RTT::Identifier => TT::Identifier,
                 RTT::Keyword(kind) => TT::Keyword(kind),
                 RTT::TextLiteral(kind) => TT::TextLiteral(kind),
                 RTT::NumberLiteral(kind) => TT::NumberLiteral(kind),

@@ -1,4 +1,8 @@
-use crate::{lang::*, traits::LogicalLinesConsolidator};
+use crate::{
+    lang::{ConditionalDirectiveKind, KeywordKind, LogicalLine, LogicalLineType, Token, TokenType},
+    prelude::TokenData,
+    traits::LogicalLinesConsolidator,
+};
 
 pub struct ImportClauseConsolidator {}
 impl LogicalLinesConsolidator for ImportClauseConsolidator {
@@ -16,12 +20,13 @@ impl LogicalLinesConsolidator for ImportClauseConsolidator {
             let (uses_line_index, uses_line_ending_token_index) = lines
                 .iter()
                 .enumerate()
-                .filter_map(
-                    |(index, line)| match line.get_tokens().contains(&uses_token_index) {
-                        true => line.get_tokens().last().map(|token| (index, token)),
-                        false => None,
-                    },
-                )
+                .filter_map(|(index, line)| {
+                    if line.get_tokens().contains(&uses_token_index) {
+                        line.get_tokens().last().map(|token| (index, token))
+                    } else {
+                        None
+                    }
+                })
                 .max_by(|a, b| a.1.cmp(b.1))
                 .unwrap();
 
@@ -56,18 +61,19 @@ impl LogicalLinesConsolidator for ImportClauseConsolidator {
             let new_token_line_index_and_token_index: Vec<(usize, usize)> = (uses_token_index
                 ..=uses_line_ending_token_index)
                 .filter_map(|token_index| {
-                    match lines
+                    if lines
                         .get(uses_line_index)
                         .unwrap()
                         .get_tokens()
                         .contains(&token_index)
                     {
-                        true => None,
-                        false => lines
+                        None
+                    } else {
+                        lines
                             .iter()
                             .enumerate()
                             .find(|(_, line)| line.get_tokens().contains(&token_index))
-                            .map(|(line_index, _)| (line_index, token_index)),
+                            .map(|(line_index, _)| (line_index, token_index))
                     }
                 })
                 .collect();
@@ -75,7 +81,7 @@ impl LogicalLinesConsolidator for ImportClauseConsolidator {
             let (mut new_token_line_indices, new_token_indices): (Vec<usize>, Vec<usize>) =
                 new_token_line_index_and_token_index.into_iter().unzip();
 
-            new_token_line_indices.sort();
+            new_token_line_indices.sort_unstable();
             new_token_line_indices.dedup();
 
             lines
@@ -87,7 +93,7 @@ impl LogicalLinesConsolidator for ImportClauseConsolidator {
                 .get_mut(uses_line_index)
                 .unwrap()
                 .get_tokens_mut()
-                .sort();
+                .sort_unstable();
             new_token_line_indices
                 .iter()
                 .rev()
@@ -110,7 +116,7 @@ mod tests {
     use indoc::indoc;
 
     fn run_test(input: &str, expected_lines: Vec<LogicalLine>) {
-        println!("input:\n{}", input);
+        println!("input:\n{input}");
 
         let lexer = DelphiLexer {};
         let parser = DelphiLogicalLineParser {};

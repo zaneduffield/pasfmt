@@ -27,7 +27,7 @@ impl TokenIgnorer for IgnoreNonUnitImportClauses {
                 .for_each(|line| {
                     line.get_tokens().iter().for_each(|token| {
                         token_marker.mark(*token);
-                    })
+                    });
                 });
         };
     }
