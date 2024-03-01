@@ -3,14 +3,59 @@ use thiserror::Error;
 
 use crate::prelude::*;
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-#[cfg_attr(
-    feature = "_lang_types_from_str",
-    derive(strum_macros::EnumString),
-    strum(ascii_case_insensitive)
-)]
-pub enum KeywordKind {
-    // Pure keywords
+macro_rules! keywords {
+    {
+        :pure:
+            $($pure_keyword: ident,)* $(,)?
+        :impure:
+            $($impure_keyword: ident,)* $(,)?
+    } => {
+        #[derive(Debug, PartialEq, Eq, Copy, Clone)]
+        pub enum PureKeywordKind {
+            $($pure_keyword),*
+        }
+
+        #[derive(Debug, PartialEq, Eq, Copy, Clone)]
+        pub enum ImpureKeywordKind {
+            $($impure_keyword),*
+        }
+
+        #[derive(Debug, PartialEq, Eq, Copy, Clone)]
+        #[cfg_attr(
+            feature = "_lang_types_from_str",
+            derive(strum_macros::EnumString),
+            strum(ascii_case_insensitive)
+        )]
+        pub enum KeywordKind {
+            // pure
+            $($pure_keyword),*
+            ,
+            // impure
+            $($impure_keyword),*
+        }
+
+
+        #[derive(Debug, PartialEq, Eq, Copy, Clone)]
+        pub enum RawKeywordKind {
+            Pure(PureKeywordKind),
+            Impure(ImpureKeywordKind)
+        }
+
+        impl From<RawKeywordKind> for KeywordKind {
+            fn from(k: RawKeywordKind) -> Self {
+                match k {
+                    $(RawKeywordKind::Pure(PureKeywordKind::$pure_keyword) => KeywordKind::$pure_keyword),*
+                    ,
+                    $(RawKeywordKind::Impure(ImpureKeywordKind::$impure_keyword) => KeywordKind::$impure_keyword),*
+                }
+            }
+        }
+    };
+}
+
+keywords! {
+    :pure:
+
     And,
     Array,
     As,
@@ -76,7 +121,7 @@ pub enum KeywordKind {
     With,
     Xor,
 
-    // Impure keywords
+    :impure:
     Absolute,
     Abstract,
     Align,
@@ -135,6 +180,7 @@ pub enum KeywordKind {
     Write,
     WriteOnly,
 }
+
 impl KeywordKind {
     pub fn is_method_directive(&self) -> bool {
         matches!(
@@ -184,6 +230,16 @@ impl KeywordKind {
                 | KeywordKind::NoDefault
                 | KeywordKind::Stored
         )
+    }
+}
+
+impl RawKeywordKind {
+    pub fn is_method_directive(&self) -> bool {
+        KeywordKind::from(*self).is_method_directive()
+    }
+
+    pub fn is_property_directive(&self) -> bool {
+        KeywordKind::from(*self).is_property_directive()
     }
 }
 
@@ -256,8 +312,8 @@ pub enum TextLiteralKind {
 pub enum RawTokenType {
     Op(OperatorKind),
     Identifier,
-    IdentifierOrKeyword(KeywordKind),
-    Keyword(KeywordKind),
+    IdentifierOrKeyword(ImpureKeywordKind),
+    Keyword(RawKeywordKind),
     TextLiteral(TextLiteralKind),
     NumberLiteral(NumberLiteralKind),
     ConditionalDirective(ConditionalDirectiveKind),
@@ -273,6 +329,14 @@ impl RawTokenType {
             self,
             Self::Comment(_) | Self::CompilerDirective | Self::ConditionalDirective(_)
         )
+    }
+
+    pub(crate) fn keyword_kind(&self) -> Option<RawKeywordKind> {
+        match self {
+            RawTokenType::Keyword(k) => Some(*k),
+            RawTokenType::IdentifierOrKeyword(k) => Some(RawKeywordKind::Impure(*k)),
+            _ => None,
+        }
     }
 }
 
@@ -659,7 +723,7 @@ impl<'a> From<RawToken<'a>> for Token<'a> {
                 RTT::IdentifierOrKeyword(_) => TT::Identifier,
                 RTT::Op(op_kind) => TT::Op(op_kind),
                 RTT::Identifier => TT::Identifier,
-                RTT::Keyword(kind) => TT::Keyword(kind),
+                RTT::Keyword(kind) => TT::Keyword(kind.into()),
                 RTT::TextLiteral(kind) => TT::TextLiteral(kind),
                 RTT::NumberLiteral(kind) => TT::NumberLiteral(kind),
                 RTT::ConditionalDirective(kind) => TT::ConditionalDirective(kind),

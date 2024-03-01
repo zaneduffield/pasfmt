@@ -279,7 +279,7 @@ fn test_expression_parsing(input: &str, token_count: Option<usize>) {
 fn no_eof() {
     // If there is erroneously no EOF token, the parser should still work
     let tokens = vec![
-        RawToken::new("unit", 0, TT::Keyword(KK::Unit)),
+        RawToken::new("unit", 0, TT::Keyword(RKK::Pure(PKK::Unit))),
         RawToken::new(" foo", 1, TT::Identifier),
         RawToken::new(";", 0, TT::Op(OK::Semicolon)),
     ];

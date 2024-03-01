@@ -26,8 +26,10 @@ use itertools::Itertools;
 use crate::lang::ConditionalDirectiveKind as CDK;
 
 use crate::lang::CommentKind as CK;
-use crate::lang::KeywordKind as KK;
+use crate::lang::ImpureKeywordKind as IKK;
 use crate::lang::OperatorKind as OK;
+use crate::lang::PureKeywordKind as PKK;
+use crate::lang::RawKeywordKind as RKK;
 use crate::lang::RawTokenType as TT;
 use crate::lang::*;
 use crate::traits::LogicalLineParser;
@@ -279,10 +281,10 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                         self.unfinished_comment_lines.push(line_ref);
                     }
                 }
-                TT::Keyword(
-                    keyword_kind @ (KK::Library | KK::Unit | KK::Program | KK::Package),
+                keyword @ (TT::Keyword(
+                    RKK::Pure(PKK::Library | PKK::Unit | PKK::Program) | RKK::Impure(IKK::Package),
                 )
-                | TT::IdentifierOrKeyword(keyword_kind @ KK::Package) => {
+                | TT::IdentifierOrKeyword(IKK::Package)) => {
                     if self.get_prev_token_type().is_none() {
                         self.consolidate_current_keyword();
                         let mut push_program_head_context = |context_type| {
@@ -294,11 +296,17 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                             });
                         };
                         use ContextType as CT;
+                        let keyword_kind = match keyword {
+                            TT::Keyword(k) => k,
+                            TT::IdentifierOrKeyword(k) => RKK::Impure(k),
+                            _ => unreachable!(),
+                        };
+
                         match keyword_kind {
-                            KK::Library => push_program_head_context(CT::Library),
-                            KK::Unit => push_program_head_context(CT::Unit),
-                            KK::Program => push_program_head_context(CT::Program),
-                            KK::Package => push_program_head_context(CT::Package),
+                            RKK::Pure(PKK::Library) => push_program_head_context(CT::Library),
+                            RKK::Pure(PKK::Unit) => push_program_head_context(CT::Unit),
+                            RKK::Pure(PKK::Program) => push_program_head_context(CT::Program),
+                            RKK::Impure(IKK::Package) => push_program_head_context(CT::Package),
                             _ => {}
                         };
                     }
@@ -317,12 +325,12 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                     self.finish_logical_line();
                     self.unfinished_comment_lines.push(line_ref);
                 }
-                TT::Keyword(
-                    keyword_kind @ (KK::Interface
-                    | KK::Implementation
-                    | KK::Initialization
-                    | KK::Finalization),
-                ) => {
+                TT::Keyword(RKK::Pure(
+                    keyword_kind @ (PKK::Interface
+                    | PKK::Implementation
+                    | PKK::Initialization
+                    | PKK::Finalization),
+                )) => {
                     self.finish_logical_line();
                     self.next_token();
                     self.finish_logical_line();
@@ -335,14 +343,14 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                         });
                     };
                     match keyword_kind {
-                        KK::Interface => push_section_context(ContextType::Interface, 0),
-                        KK::Implementation => push_section_context(ContextType::Implementation, 0),
-                        KK::Initialization => push_section_context(ContextType::Initialization, 1),
-                        KK::Finalization => push_section_context(ContextType::Finalization, 1),
+                        PKK::Interface => push_section_context(ContextType::Interface, 0),
+                        PKK::Implementation => push_section_context(ContextType::Implementation, 0),
+                        PKK::Initialization => push_section_context(ContextType::Initialization, 1),
+                        PKK::Finalization => push_section_context(ContextType::Finalization, 1),
                         _ => {}
                     };
                 }
-                TT::Keyword(KK::Begin) => {
+                TT::Keyword(RKK::Pure(PKK::Begin)) => {
                     self.next_token();
                     self.parse_block(ParserContext {
                         context_type: ContextType::CompoundStatement,
@@ -358,13 +366,13 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                     }
                     self.finish_logical_line();
                 }
-                TT::Keyword(KK::End) => {
+                TT::Keyword(RKK::Pure(PKK::End)) => {
                     self.next_token();
                     if let Some(TT::Op(OK::Dot)) = self.get_current_token_type() {
                         self.next_token();
                     }
                 }
-                TT::Keyword(KK::Repeat) => {
+                TT::Keyword(RKK::Pure(PKK::Repeat)) => {
                     self.next_token(); // Repeat
                     self.parse_block(ParserContext {
                         context_type: ContextType::RepeatBlock,
@@ -388,7 +396,7 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                     self.take_until(no_more_separators());
                     self.finish_logical_line();
                 }
-                TT::Keyword(KK::Try) => {
+                TT::Keyword(RKK::Pure(PKK::Try)) => {
                     self.next_token(); // Try
                     self.parse_block(ParserContext {
                         context_type: ContextType::TryBlock,
@@ -397,7 +405,7 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                         level_delta: 1,
                     });
                     let context_type = match self.get_current_token_type() {
-                        Some(TT::Keyword(KK::Except)) => ContextType::ExceptBlock,
+                        Some(TT::Keyword(RKK::Pure(PKK::Except))) => ContextType::ExceptBlock,
                         _ => ContextType::CompoundStatement,
                     };
                     self.next_token(); // Except/Finally
@@ -407,7 +415,7 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                         context_ending_predicate: else_end,
                         level_delta: 1,
                     });
-                    if let Some(TT::Keyword(KK::Else)) = self.get_current_token_type() {
+                    if let Some(TT::Keyword(RKK::Pure(PKK::Else))) = self.get_current_token_type() {
                         self.next_token(); // Else
                         self.parse_block(ParserContext {
                             context_type: ContextType::CompoundStatement,
@@ -420,7 +428,7 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                     self.take_until(no_more_separators());
                     self.finish_logical_line();
                 }
-                TT::Keyword(KK::On) | TT::IdentifierOrKeyword(KK::On)
+                TT::Keyword(RKK::Impure(IKK::On)) | TT::IdentifierOrKeyword(IKK::On)
                     if matches!(self.get_last_context_type(), Some(ContextType::ExceptBlock)) =>
                 {
                     self.consolidate_current_keyword();
@@ -434,10 +442,10 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                         level_delta: 0,
                     });
                 }
-                TT::Keyword(keyword_kind @ (KK::For | KK::While | KK::With)) => {
+                TT::Keyword(RKK::Pure(keyword_kind @ (PKK::For | PKK::While | PKK::With))) => {
                     self.next_token(); // For/While/With
                     self.set_logical_line_type(match keyword_kind {
-                        KK::For => LLT::ForLoop,
+                        PKK::For => LLT::ForLoop,
                         _ => LLT::Unknown,
                     });
                     // Continue parsing until do pops this context
@@ -449,7 +457,7 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                     });
                     self.parse_statement();
                 }
-                TT::Keyword(KK::If) => {
+                TT::Keyword(RKK::Pure(PKK::If)) => {
                     self.next_token(); // If
 
                     // Continue parsing until then pops this context
@@ -460,16 +468,16 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                         level_delta: 0,
                     })
                 }
-                TT::Keyword(KK::Then) => {
+                TT::Keyword(RKK::Pure(PKK::Then)) => {
                     if let Some(ContextType::BlockClause) = self.get_last_context_type() {
                         self.context.pop();
                     }
                     self.next_token();
                 }
-                TT::Keyword(KK::Else) => {
+                TT::Keyword(RKK::Pure(PKK::Else)) => {
                     self.next_token();
                 }
-                TT::Keyword(KK::Case) => {
+                TT::Keyword(RKK::Pure(PKK::Case)) => {
                     let tagged_record =
                         self.context
                             .iter()
@@ -495,7 +503,7 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                         level_delta: 0,
                     });
                 }
-                TT::Keyword(KK::Of) => {
+                TT::Keyword(RKK::Pure(PKK::Of)) => {
                     self.next_token(); // Of
                     self.finish_logical_line();
                     self.parse_block(ParserContext {
@@ -504,7 +512,7 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                         context_ending_predicate: else_end,
                         level_delta: 1,
                     });
-                    if let Some(TT::Keyword(KK::Else)) = self.get_current_token_type() {
+                    if let Some(TT::Keyword(RKK::Pure(PKK::Else))) = self.get_current_token_type() {
                         self.next_token(); // Else
                         self.finish_logical_line();
                         self.parse_block(ParserContext {
@@ -529,15 +537,15 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                         self.context.pop();
                     }
                 }
-                TT::Keyword(KK::Uses) => {
+                TT::Keyword(RKK::Pure(PKK::Uses)) => {
                     self.finish_logical_line();
                     self.next_token();
                     self.set_logical_line_type(LLT::ImportClause);
                     self.take_until(after_semicolon());
                     self.finish_logical_line();
                 }
-                TT::Keyword(KK::Contains | KK::Requires)
-                | TT::IdentifierOrKeyword(KK::Contains | KK::Requires)
+                TT::Keyword(RKK::Impure(IKK::Contains | IKK::Requires))
+                | TT::IdentifierOrKeyword(IKK::Contains | IKK::Requires)
                     if matches!(self.get_last_context_type(), Some(ContextType::Package)) =>
                 {
                     self.finish_logical_line();
@@ -547,31 +555,31 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                     self.take_until(after_semicolon());
                     self.finish_logical_line();
                 }
-                TT::Keyword(KK::Exports) => {
+                TT::Keyword(RKK::Pure(PKK::Exports)) => {
                     self.finish_logical_line();
                     self.next_token(); // Exports
                     self.parse_expression(); // Identifier
                     self.simple_op_until(after_semicolon(), parse_exports);
                     self.finish_logical_line();
                 }
-                TT::Keyword(KK::Class) => {
+                TT::Keyword(RKK::Pure(PKK::Class)) => {
                     // If class is the first token in the line, allow the next
                     // token to dictate how it will be parsed.
                     self.next_token();
-                    if let Some(KK::Operator) = self.get_current_keyword_kind() {
+                    if let Some(RKK::Impure(IKK::Operator)) = self.get_current_keyword_kind() {
                         self.consolidate_current_keyword();
                     }
                 }
-                TT::Keyword(KK::Strict) | TT::IdentifierOrKeyword(KK::Strict) => {
+                TT::Keyword(RKK::Impure(IKK::Strict)) | TT::IdentifierOrKeyword(IKK::Strict) => {
                     self.next_token();
                 }
-                TT::Keyword(
-                    KK::Private | KK::Protected | KK::Public | KK::Published | KK::Automated,
-                )
+                TT::Keyword(RKK::Impure(
+                    IKK::Private | IKK::Protected | IKK::Public | IKK::Published | IKK::Automated,
+                ))
                 | TT::IdentifierOrKeyword(
-                    KK::Private | KK::Protected | KK::Public | KK::Published | KK::Automated,
+                    IKK::Private | IKK::Protected | IKK::Public | IKK::Published | IKK::Automated,
                 ) => {
-                    if let Some(TT::IdentifierOrKeyword(KK::Strict)) = self.get_prev_token_type() {
+                    if let Some(TT::IdentifierOrKeyword(IKK::Strict)) = self.get_prev_token_type() {
                         self.consolidate_prev_keyword();
                     }
                     self.consolidate_current_keyword();
@@ -585,9 +593,10 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                         level_delta: 1,
                     });
                 }
-                TT::Keyword(
-                    keyword_kind @ (KK::Var | KK::ThreadVar | KK::Const | KK::Label | KK::Type),
-                ) => {
+                TT::Keyword(RKK::Pure(
+                    keyword_kind
+                    @ (PKK::Var | PKK::ThreadVar | PKK::Const | PKK::Label | PKK::Type),
+                )) => {
                     if let Some(ContextType::CompoundStatement) = self.get_last_context_type() {
                         // Inline declaration
                         self.set_logical_line_type(LLT::InlineDeclaration);
@@ -612,7 +621,7 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                     }
                     self.finish_logical_line();
                     let context_type = match keyword_kind {
-                        KK::Type => ContextType::TypeBlock,
+                        PKK::Type => ContextType::TypeBlock,
                         _ => ContextType::DeclarationBlock,
                     };
                     self.parse_block(ParserContext {
@@ -625,9 +634,10 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                         self.context.pop();
                     }
                 }
-                TT::Keyword(KK::Property) => self.parse_property_declaration(),
+                TT::Keyword(RKK::Pure(PKK::Property)) => self.parse_property_declaration(),
                 TT::Keyword(
-                    KK::Function | KK::Procedure | KK::Constructor | KK::Destructor | KK::Operator,
+                    RKK::Pure(PKK::Function | PKK::Procedure | PKK::Constructor | PKK::Destructor)
+                    | RKK::Impure(IKK::Operator),
                 ) => {
                     self.set_logical_line_type(LLT::RoutineHeader);
                     self.parse_routine_header();
@@ -635,7 +645,10 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                         .get_current_logical_line_token_types()
                         .rev()
                         .any(|token_type| {
-                            matches!(token_type, TT::Keyword(KK::Forward | KK::External))
+                            matches!(
+                                token_type,
+                                TT::Keyword(RKK::Impure(IKK::Forward | IKK::External))
+                            )
                         })
                         || self.context.iter().any(|context| {
                             matches!(
@@ -652,8 +665,8 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                             level_delta: 1,
                         });
                         match self.get_current_token_type() {
-                            Some(TT::Keyword(KK::Asm)) => self.parse_asm_block(),
-                            Some(TT::Keyword(KK::Begin)) => {
+                            Some(TT::Keyword(RKK::Pure(PKK::Asm))) => self.parse_asm_block(),
+                            Some(TT::Keyword(RKK::Pure(PKK::Begin))) => {
                                 self.parse_begin_end(false, 1);
                                 self.finish_logical_line();
                             }
@@ -661,11 +674,11 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                         }
                     }
                 }
-                TT::Keyword(KK::Asm) => self.parse_asm_block(),
-                TT::Keyword(KK::Raise) => {
+                TT::Keyword(RKK::Pure(PKK::Asm)) => self.parse_asm_block(),
+                TT::Keyword(RKK::Pure(PKK::Raise)) => {
                     self.next_token();
                     self.parse_expression();
-                    if let Some(KK::At) = self.get_current_keyword_kind() {
+                    if let Some(RKK::Impure(IKK::At)) = self.get_current_keyword_kind() {
                         self.consolidate_current_keyword();
                         self.parse_expression();
                     }
@@ -684,18 +697,20 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                 }
             }
             match token_type {
-                TT::Keyword(
-                    KK::Class | KK::Interface | KK::DispInterface | KK::Record | KK::Object,
-                ) => {
+                TT::Keyword(RKK::Pure(
+                    PKK::Class | PKK::Interface | PKK::DispInterface | PKK::Record | PKK::Object,
+                )) => {
                     self.next_token(); // Class/Interface/DispInterface/Record/Object
-                    if let Some(KK::Abstract | KK::Sealed) = self.get_current_keyword_kind() {
+                    if let Some(RKK::Impure(IKK::Abstract | IKK::Sealed)) =
+                        self.get_current_keyword_kind()
+                    {
                         if self.get_next_token_type() != Some(TT::Op(OK::Colon)) {
                             self.consolidate_current_keyword();
                         }
                         self.next_token(); // Abstract/Sealed
                     }
-                    if let Some(KK::Helper) = self.get_current_keyword_kind() {
-                        if self.get_next_token_type() == Some(TT::Keyword(KK::For)) {
+                    if let Some(RKK::Impure(IKK::Helper)) = self.get_current_keyword_kind() {
+                        if self.get_next_token_type() == Some(TT::Keyword(RKK::Pure(PKK::For))) {
                             self.consolidate_current_keyword();
                             self.next_token(); // Helper
                             self.next_token(); // For
@@ -706,7 +721,7 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                         self.parse_parens(); // Parent types
                     }
                     match self.get_current_token_type() {
-                        Some(TT::Keyword(KK::Of)) => {
+                        Some(TT::Keyword(RKK::Pure(PKK::Of))) => {
                             // class of ... - continue parsing statement
                             self.next_token();
                             break;
@@ -752,20 +767,22 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                     self.simple_op_until(
                         after_semicolon(),
                         keyword_consolidator(|keyword| {
-                            PORTABILITY_DIRECTIVES.contains(&keyword) || keyword == KK::Align
+                            PORTABILITY_DIRECTIVES.contains(&keyword)
+                                || keyword == RKK::Impure(IKK::Align)
                         }),
                     );
                     self.take_until(no_more_separators());
                     self.finish_logical_line();
                     return;
                 }
-                TT::Keyword(KK::Do | KK::Then) => {
+                TT::Keyword(RKK::Pure(PKK::Do | PKK::Then)) => {
                     if let Some(ContextType::BlockClause) = self.get_last_context_type() {
                         self.context.pop();
                     }
                     self.next_token(); // Do/Then
 
-                    if let Some(TT::Keyword(KK::Begin)) = self.get_current_token_type() {
+                    if let Some(TT::Keyword(RKK::Pure(PKK::Begin))) = self.get_current_token_type()
+                    {
                         return;
                     }
 
@@ -782,12 +799,17 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                     self.context.pop();
 
                     match (self.get_current_token_type(), self.get_last_context_type()) {
-                        (Some(TT::Keyword(KK::Else)), Some(ContextType::ExceptBlock)) => return,
-                        (Some(TT::Keyword(KK::Else)), _) => self.next_token(),
+                        (
+                            Some(TT::Keyword(RKK::Pure(PKK::Else))),
+                            Some(ContextType::ExceptBlock),
+                        ) => return,
+                        (Some(TT::Keyword(RKK::Pure(PKK::Else))), _) => self.next_token(),
                         _ => return,
                     }
 
-                    if let Some(TT::Keyword(KK::Begin | KK::If)) = self.get_current_token_type() {
+                    if let Some(TT::Keyword(RKK::Pure(PKK::Begin | PKK::If))) =
+                        self.get_current_token_type()
+                    {
                         return;
                     }
 
@@ -803,14 +825,14 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                     self.finish_logical_line();
                     self.context.pop();
                 }
-                TT::Keyword(KK::Of) => {
+                TT::Keyword(RKK::Pure(PKK::Of)) => {
                     if let Some(ContextType::BlockClause) = self.get_last_context_type() {
                         // case ... of
                         self.context.pop();
                         return;
                     } else {
                         self.next_token();
-                        if let Some(KK::Const) = self.get_current_keyword_kind() {
+                        if let Some(RKK::Pure(PKK::Const)) = self.get_current_keyword_kind() {
                             self.next_token();
                         }
                     }
@@ -835,8 +857,8 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                     ) = self.get_last_context_type()
                     {
                         match self.get_current_token_type() {
-                            Some(TT::Keyword(KK::Class)) => self.next_token(),
-                            Some(TT::Keyword(KK::Function | KK::Procedure)) => {
+                            Some(TT::Keyword(RKK::Pure(PKK::Class))) => self.next_token(),
+                            Some(TT::Keyword(RKK::Pure(PKK::Function | PKK::Procedure))) => {
                                 self.parse_routine_header();
                                 self.finish_logical_line();
                                 return;
@@ -849,14 +871,16 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                     self.next_token();
                     if let Some(ContextType::TypeBlock) = self.get_last_context_type() {
                         match self.get_current_token_type() {
-                            Some(TT::Keyword(KK::Type)) => {
+                            Some(TT::Keyword(RKK::Pure(PKK::Type))) => {
                                 self.next_token();
-                                if let Some(TT::Keyword(KK::Of)) = self.get_current_token_type() {
+                                if let Some(TT::Keyword(RKK::Pure(PKK::Of))) =
+                                    self.get_current_token_type()
+                                {
                                     // type TFoo = type of
                                     self.next_token()
                                 }
                             }
-                            Some(TT::Keyword(KK::Function | KK::Procedure)) => {
+                            Some(TT::Keyword(RKK::Pure(PKK::Function | PKK::Procedure))) => {
                                 self.parse_routine_header();
                                 self.finish_logical_line();
                                 return;
@@ -865,15 +889,15 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                         }
                     }
                 }
-                TT::IdentifierOrKeyword(KK::Reference) => {
-                    if let Some(TT::Keyword(KK::To)) = self.get_next_token_type() {
+                TT::IdentifierOrKeyword(IKK::Reference) => {
+                    if let Some(TT::Keyword(RKK::Pure(PKK::To))) = self.get_next_token_type() {
                         self.consolidate_current_keyword();
                     }
                     self.next_token();
                 }
-                TT::Keyword(KK::To) => {
+                TT::Keyword(RKK::Pure(PKK::To)) => {
                     self.next_token();
-                    if let Some(TT::Keyword(KK::Function | KK::Procedure)) =
+                    if let Some(TT::Keyword(RKK::Pure(PKK::Function | PKK::Procedure))) =
                         self.get_current_token_type()
                     {
                         self.parse_routine_header();
@@ -881,7 +905,7 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                         return;
                     }
                 }
-                TT::IdentifierOrKeyword(KK::Absolute)
+                TT::IdentifierOrKeyword(IKK::Absolute)
                     if matches!(
                         self.get_prev_token_type(),
                         Some(TT::Identifier | TT::IdentifierOrKeyword(_))
@@ -896,10 +920,10 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                         self.set_logical_line_type(LLT::Assignment);
                     }
                 }
-                TT::Keyword(KK::Function | KK::Procedure) => {
+                TT::Keyword(RKK::Pure(PKK::Function | PKK::Procedure)) => {
                     self.parse_anonymous_routine();
                 }
-                TT::Keyword(KK::Begin) => {
+                TT::Keyword(RKK::Pure(PKK::Begin)) => {
                     self.next_token();
                     self.parse_block(ParserContext {
                         context_type: ContextType::CompoundStatement,
@@ -953,7 +977,7 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                     self.next_token(); // )
                     return;
                 }
-                TT::Keyword(KK::Function | KK::Procedure) => {
+                TT::Keyword(RKK::Pure(PKK::Function | PKK::Procedure)) => {
                     self.parse_anonymous_routine();
                 }
                 _ => self.next_token(),
@@ -983,9 +1007,11 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
             };
             match token_type {
                 TT::Op(OK::LParen) => self.parse_parameter_list(),
-                TT::Keyword(keyword_kind @ (KK::Label | KK::Const | KK::Type | KK::Var)) => {
+                TT::Keyword(RKK::Pure(
+                    keyword_kind @ (PKK::Label | PKK::Const | PKK::Type | PKK::Var),
+                )) => {
                     let context_type = match keyword_kind {
-                        KK::Type => ContextType::TypeBlock,
+                        PKK::Type => ContextType::TypeBlock,
                         _ => ContextType::DeclarationBlock,
                     };
                     self.next_token(); // Label/Const/Type/Var
@@ -996,7 +1022,7 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                         level_delta: 0i16.saturating_sub_unsigned(self.get_context_level()),
                     });
                 }
-                TT::Keyword(KK::Begin) => {
+                TT::Keyword(RKK::Pure(PKK::Begin)) => {
                     self.parse_begin_end(
                         true,
                         0i16.saturating_sub_unsigned(self.get_context_level()),
@@ -1011,17 +1037,26 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
 
     fn parse_routine_header(&mut self) {
         self.next_token(); // Function/Procedure/Constructor/Destructor/Operator
-        const METHOD_DIRECTIVES_WITH_ARGS: [KeywordKind; 6] = [
-            KK::Message,
-            KK::Deprecated,
-            KK::DispId,
-            KK::External,
-            KK::Index,
-            KK::Name,
+        const METHOD_DIRECTIVES_WITH_ARGS: [RawKeywordKind; 6] = [
+            RKK::Impure(IKK::Message),
+            RKK::Impure(IKK::Deprecated),
+            RKK::Impure(IKK::DispId),
+            RKK::Impure(IKK::External),
+            RKK::Impure(IKK::Index),
+            RKK::Impure(IKK::Name),
         ];
-        let is_directive = |keyword_kind: &KeywordKind| {
+
+        let is_directive_keyword = |keyword_kind: &RawKeywordKind| {
             keyword_kind.is_method_directive()
-                || matches!(keyword_kind, KK::Name | KK::Index | KK::Delayed)
+                || matches!(
+                    keyword_kind,
+                    RKK::Impure(IKK::Name | IKK::Index | IKK::Delayed)
+                )
+        };
+        let is_directive = |keyword_kind: &RawTokenType| match keyword_kind {
+            TT::Keyword(k) => is_directive_keyword(k),
+            TT::IdentifierOrKeyword(ik) => is_directive_keyword(&RKK::Impure(*ik)),
+            _ => false,
         };
         // Allow the op and the context to dictate the ending of the loop
         self.op_until(never_ending, |parser| {
@@ -1031,9 +1066,12 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                         parser.get_prev_token_type(),
                         Some(
                             TT::Op(OK::Colon | OK::Dot)
-                                | TT::Keyword(
-                                    KK::Function | KK::Procedure | KK::Constructor | KK::Destructor
-                                )
+                                | TT::Keyword(RKK::Pure(
+                                    PKK::Function
+                                        | PKK::Procedure
+                                        | PKK::Constructor
+                                        | PKK::Destructor
+                                ))
                         )
                     ) =>
                 {
@@ -1041,12 +1079,18 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                     parser.next_token();
                 }
                 Some(TT::Op(OK::LParen)) => parser.parse_parameter_list(),
-                Some(TT::Keyword(keyword_kind) | TT::IdentifierOrKeyword(keyword_kind))
-                    if is_directive(&keyword_kind) && parser.paren_level == 0 =>
+                Some(keyword @ (TT::Keyword(_) | TT::IdentifierOrKeyword(_)))
+                    if is_directive(&keyword) && parser.paren_level == 0 =>
                 {
+                    let keyword_kind = match keyword {
+                        TT::Keyword(k) => k,
+                        TT::IdentifierOrKeyword(ik) => RKK::Impure(ik),
+                        _ => unreachable!(),
+                    };
+
                     parser.consolidate_current_keyword();
                     parser.next_token();
-                    if let (KK::External, Some(KK::Name)) =
+                    if let (RKK::Impure(IKK::External), Some(RKK::Impure(IKK::Name))) =
                         (keyword_kind, parser.get_current_keyword_kind())
                     {
                         /*
@@ -1064,7 +1108,7 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                     parser.take_until(no_more_separators());
                     if parser
                         .get_current_keyword_kind()
-                        .filter(is_directive)
+                        .filter(is_directive_keyword)
                         .is_none()
                     {
                         return OpResult::Break;
@@ -1086,17 +1130,21 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                     }
                     (
                         Some(TT::Op(OK::Semicolon | OK::LParen)),
-                        Some(TT::IdentifierOrKeyword(KK::Out)),
+                        Some(TT::IdentifierOrKeyword(IKK::Out)),
                         _,
                     ) => parser.consolidate_current_keyword(),
 
-                    (_, Some(TT::Keyword(KK::Of)), Some(TT::Keyword(KK::Const))) => {
+                    (
+                        _,
+                        Some(TT::Keyword(RKK::Pure(PKK::Of))),
+                        Some(TT::Keyword(RKK::Pure(PKK::Const))),
+                    ) => {
                         parser.next_token();
                     }
                     (
                         _,
                         Some(TT::Op(OK::Semicolon | OK::LParen)),
-                        Some(TT::Keyword(KK::Const | KK::Var)),
+                        Some(TT::Keyword(RKK::Pure(PKK::Const | PKK::Var))),
                     ) => {
                         // By skipping the Const, and Var keywords, it ensures that parent
                         // contexts that are ended with these keywords, are not ended prematurely.
@@ -1113,8 +1161,11 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
         self.next_token(); // Property
         self.parse_expression(); // Identifier
 
-        const PROPERTY_DIRECTIVES_WITHOUT_ARGS: [KeywordKind; 3] =
-            [KK::ReadOnly, KK::WriteOnly, KK::NoDefault];
+        const PROPERTY_DIRECTIVES_WITHOUT_ARGS: [RawKeywordKind; 3] = [
+            RKK::Impure(IKK::ReadOnly),
+            RKK::Impure(IKK::WriteOnly),
+            RKK::Impure(IKK::NoDefault),
+        ];
 
         self.simple_op_until(
             predicate_and(
@@ -1127,26 +1178,32 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
             |parser| match parser.get_current_token_type_window() {
                 (_, Some(TT::IdentifierOrKeyword(_)), Some(TT::Op(OK::Colon)))
                 | (
-                    Some(TT::Op(OK::Colon) | TT::Keyword(KK::Property)),
+                    Some(TT::Op(OK::Colon) | TT::Keyword(RKK::Pure(PKK::Property))),
                     Some(TT::IdentifierOrKeyword(_)),
                     _,
                 ) => {
                     parser.consolidate_current_ident();
                     parser.next_token();
                 }
-                (_, Some(TT::IdentifierOrKeyword(keyword_kind) | TT::Keyword(keyword_kind)), _)
-                    if keyword_kind.is_property_directive() && parser.brack_level == 0 =>
+                (_, Some(keyword @ (TT::IdentifierOrKeyword(_) | TT::Keyword(_))), _)
+                    if keyword
+                        .keyword_kind()
+                        .is_some_and(|kk| kk.is_property_directive())
+                        && parser.brack_level == 0 =>
                 {
                     parser.consolidate_current_keyword();
                     parser.next_token();
-                    if !PROPERTY_DIRECTIVES_WITHOUT_ARGS.contains(&keyword_kind) {
+                    if keyword
+                        .keyword_kind()
+                        .is_some_and(|kk| !PROPERTY_DIRECTIVES_WITHOUT_ARGS.contains(&kk))
+                    {
                         parser.parse_expression();
                     }
                 }
                 _ => parser.next_token(),
             },
         );
-        if let Some(KK::Default) = self.get_current_keyword_kind() {
+        if let Some(RKK::Impure(IKK::Default)) = self.get_current_keyword_kind() {
             // Handles `property ...; default;`
             self.consolidate_current_keyword();
             self.next_token(); // Default
@@ -1219,7 +1276,7 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
 
         while let Some(token) = self
             .get_current_token()
-            .filter(|token| !matches!(token.get_token_type(), TT::Keyword(KK::End)))
+            .filter(|token| !matches!(token.get_token_type(), TT::Keyword(RKK::Pure(PKK::End))))
         {
             if let TT::Op(OK::Semicolon) = token.get_token_type() {
                 self.next_token();
@@ -1313,7 +1370,7 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                 Some(
                     TT::Identifier
                         | TT::NumberLiteral(_)
-                        | TT::Keyword(KK::Type)
+                        | TT::Keyword(RKK::Pure(PKK::Type))
                         | TT::Op(OK::RBrack | OK::RParen | OK::RGeneric | OK::Semicolon)
                 )
             ) {
@@ -1321,14 +1378,19 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
             }
             match prev_token_type {
                 Some(TT::Op(OK::RBrack | OK::RGeneric | OK::RParen)) => {}
-                Some(TT::Keyword(KK::Type | KK::Of)) => break,
+                Some(TT::Keyword(RKK::Pure(PKK::Type | PKK::Of))) => break,
                 Some(token_type) if is_operator(token_type) => break,
                 _ => {}
             }
 
-            if let Some(TT::IdentifierOrKeyword(
-                directive @ (KK::Deprecated | KK::Experimental | KK::Platform | KK::Library),
-            )) = self.tokens.get(token_index).map(RawToken::get_token_type)
+            if let Some(
+                directive @ (RKK::Impure(IKK::Deprecated | IKK::Experimental | IKK::Platform)
+                | RKK::Pure(PKK::Library)),
+            ) = self
+                .tokens
+                .get(token_index)
+                .map(RawToken::get_token_type)
+                .and_then(|tt| tt.keyword_kind())
             {
                 if let Some(token) = self.tokens.get_mut(token_index) {
                     token.set_token_type(TT::Keyword(directive))
@@ -1516,7 +1578,7 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
             .and_then(|&token_index| self.tokens.get_mut(token_index))
         {
             if let TT::IdentifierOrKeyword(keyword_kind) = token.get_token_type() {
-                token.set_token_type(TT::Keyword(keyword_kind));
+                token.set_token_type(TT::Keyword(RKK::Impure(keyword_kind)));
             }
         }
     }
@@ -1545,10 +1607,11 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
             self.get_next_token_type(),
         )
     }
-    fn get_current_keyword_kind(&self) -> Option<KeywordKind> {
+    fn get_current_keyword_kind(&self) -> Option<RawKeywordKind> {
         self.get_current_token_type()
             .and_then(|token_type| match token_type {
-                TT::IdentifierOrKeyword(kind) | TT::Keyword(kind) => Some(kind),
+                TT::Keyword(kind) => Some(kind),
+                TT::IdentifierOrKeyword(kind) => Some(RKK::Impure(kind)),
                 _ => None,
             })
     }
@@ -1568,7 +1631,7 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
             .and_then(|token_index| self.tokens.get_mut(token_index))
         {
             if let TT::IdentifierOrKeyword(keyword_kind) = token.get_token_type() {
-                token.set_token_type(TT::Keyword(keyword_kind));
+                token.set_token_type(TT::Keyword(RKK::Impure(keyword_kind)));
             }
         }
     }
@@ -1689,8 +1752,10 @@ fn never_ending(_parser: &LLP) -> bool {
 
 fn section_headings(parser: &LLP) -> bool {
     match parser.get_current_token_type() {
-        Some(TT::Keyword(KK::Implementation | KK::Initialization | KK::Finalization)) => true,
-        Some(TT::Keyword(KK::Interface)) => {
+        Some(TT::Keyword(RKK::Pure(
+            PKK::Implementation | PKK::Initialization | PKK::Finalization,
+        ))) => true,
+        Some(TT::Keyword(RKK::Pure(PKK::Interface))) => {
             !matches!(parser.get_prev_token_type(), Some(TT::Op(OK::Equal)))
         }
         _ => false,
@@ -1700,7 +1765,14 @@ fn section_headings(parser: &LLP) -> bool {
 fn visibility_specifier(parser: &LLP) -> bool {
     matches!(
         parser.get_current_keyword_kind(),
-        Some(KK::Private | KK::Protected | KK::Public | KK::Published | KK::Automated | KK::Strict)
+        Some(RKK::Impure(
+            IKK::Private
+                | IKK::Protected
+                | IKK::Public
+                | IKK::Published
+                | IKK::Automated
+                | IKK::Strict
+        ))
     )
 }
 
@@ -1711,18 +1783,20 @@ fn visibility_block_ending(parser: &LLP) -> bool {
 fn begin_asm(parser: &LLP) -> bool {
     matches!(
         parser.get_current_token_type(),
-        Some(TT::Keyword(KK::Begin | KK::Asm))
+        Some(TT::Keyword(RKK::Pure(PKK::Begin | PKK::Asm)))
     )
 }
 fn else_end(parser: &LLP) -> bool {
     matches!(
         parser.get_current_token_type(),
-        Some(TT::Keyword(KK::End | KK::Else))
+        Some(TT::Keyword(RKK::Pure(PKK::End | PKK::Else)))
     )
 }
 fn semicolon_else_or_parent(parser: &LLP) -> bool {
-    matches!(parser.get_current_token_type(), Some(TT::Keyword(KK::Else)))
-        || matches!(parser.get_prev_token_type(), Some(TT::Op(OK::Semicolon)))
+    matches!(
+        parser.get_current_token_type(),
+        Some(TT::Keyword(RKK::Pure(PKK::Else)))
+    ) || matches!(parser.get_prev_token_type(), Some(TT::Op(OK::Semicolon)))
         || parser
             .context
             .iter()
@@ -1733,19 +1807,22 @@ fn semicolon_else_or_parent(parser: &LLP) -> bool {
             .unwrap_or(false)
 }
 fn end(parser: &LLP) -> bool {
-    matches!(parser.get_current_token_type(), Some(TT::Keyword(KK::End)))
+    matches!(
+        parser.get_current_token_type(),
+        Some(TT::Keyword(RKK::Pure(PKK::End)))
+    )
 }
 fn until(parser: &LLP) -> bool {
     matches!(
         parser.get_current_token_type(),
-        Some(TT::Keyword(KK::Until))
+        Some(TT::Keyword(RKK::Pure(PKK::Until)))
     )
 }
 
 fn except_finally(parser: &LLP) -> bool {
     matches!(
         parser.get_current_token_type(),
-        Some(TT::Keyword(KK::Except | KK::Finally))
+        Some(TT::Keyword(RKK::Pure(PKK::Except | PKK::Finally)))
     )
 }
 
@@ -1759,43 +1836,50 @@ fn declaration_section(parser: &LLP) -> bool {
             consuming the `type` after consuming the `=`. `class` is not given
             the same treatment due to the rest of the struct type parsing.
         */
-        (Some(TT::Op(OK::Equal) | TT::Keyword(KK::Packed)), Some(TT::Keyword(KK::Class))) => false,
+        (
+            Some(TT::Op(OK::Equal) | TT::Keyword(RKK::Pure(PKK::Packed))),
+            Some(TT::Keyword(RKK::Pure(PKK::Class))),
+        ) => false,
         (
             _,
             Some(
                 TT::Keyword(
-                    KK::Label
-                    | KK::Const
-                    | KK::Type
-                    | KK::Var
-                    | KK::Exports
-                    | KK::ThreadVar
-                    | KK::Begin
-                    | KK::Asm
-                    | KK::Strict
-                    | KK::Private
-                    | KK::Protected
-                    | KK::Public
-                    | KK::Published
-                    | KK::Automated
-                    | KK::Class
-                    | KK::Property
-                    | KK::Function
-                    | KK::Procedure
-                    | KK::Constructor
-                    | KK::Destructor
-                    | KK::End
-                    | KK::Implementation
-                    | KK::Initialization
-                    | KK::Finalization,
+                    RKK::Pure(
+                        PKK::Label
+                        | PKK::Const
+                        | PKK::Type
+                        | PKK::Var
+                        | PKK::Exports
+                        | PKK::ThreadVar
+                        | PKK::Begin
+                        | PKK::Asm
+                        | PKK::Class
+                        | PKK::Property
+                        | PKK::Function
+                        | PKK::Procedure
+                        | PKK::Constructor
+                        | PKK::Destructor
+                        | PKK::End
+                        | PKK::Implementation
+                        | PKK::Initialization
+                        | PKK::Finalization,
+                    )
+                    | RKK::Impure(
+                        IKK::Strict
+                        | IKK::Private
+                        | IKK::Protected
+                        | IKK::Public
+                        | IKK::Published
+                        | IKK::Automated,
+                    ),
                 )
                 | TT::IdentifierOrKeyword(
-                    KK::Strict
-                    | KK::Private
-                    | KK::Protected
-                    | KK::Public
-                    | KK::Published
-                    | KK::Automated,
+                    IKK::Strict
+                    | IKK::Private
+                    | IKK::Protected
+                    | IKK::Public
+                    | IKK::Published
+                    | IKK::Automated,
                 ),
             ),
         ) => true,
@@ -1810,12 +1894,15 @@ fn parse_exports(parser: &mut LLP) {
             parser.parse_expression(); // Identifier
         }
         Some(TT::Op(OK::LParen)) => parser.skip_pair(),
-        Some(TT::IdentifierOrKeyword(KK::Name | KK::Index) | TT::Keyword(KK::Name | KK::Index)) => {
+        Some(
+            TT::IdentifierOrKeyword(IKK::Name | IKK::Index)
+            | TT::Keyword(RKK::Impure(IKK::Name | IKK::Index)),
+        ) => {
             parser.consolidate_current_keyword();
             parser.next_token(); // Name/Index
             parser.parse_expression(); // Value
         }
-        Some(TT::IdentifierOrKeyword(KK::Resident) | TT::Keyword(KK::Resident)) => {
+        Some(TT::IdentifierOrKeyword(IKK::Resident) | TT::Keyword(RKK::Impure(IKK::Resident))) => {
             parser.consolidate_current_keyword();
             parser.next_token(); // Resident
         }
@@ -1826,28 +1913,36 @@ fn parse_exports(parser: &mut LLP) {
 fn local_declaration_section(parser: &LLP) -> bool {
     matches!(
         parser.get_current_token_type(),
-        Some(TT::Keyword(
-            KK::Label
-                | KK::Const
-                | KK::Type
-                | KK::Var
-                | KK::Exports
-                | KK::Begin
-                | KK::Asm
-                | KK::End
-                | KK::Function
-                | KK::Procedure
-        ))
+        Some(TT::Keyword(RKK::Pure(
+            PKK::Label
+                | PKK::Const
+                | PKK::Type
+                | PKK::Var
+                | PKK::Exports
+                | PKK::Begin
+                | PKK::Asm
+                | PKK::End
+                | PKK::Function
+                | PKK::Procedure
+        )))
     )
 }
 
 // Parser consolidators
 
-const PORTABILITY_DIRECTIVES: [KeywordKind; 4] =
-    [KK::Deprecated, KK::Experimental, KK::Platform, KK::Library];
-fn keyword_consolidator(keyword_predicate: impl Fn(KeywordKind) -> bool) -> impl Fn(&mut LLP) {
+const PORTABILITY_DIRECTIVES: [RawKeywordKind; 4] = [
+    RKK::Impure(IKK::Deprecated),
+    RKK::Impure(IKK::Experimental),
+    RKK::Impure(IKK::Platform),
+    RKK::Pure(PKK::Library),
+];
+fn keyword_consolidator(keyword_predicate: impl Fn(RawKeywordKind) -> bool) -> impl Fn(&mut LLP) {
     move |parser| {
-        if let Some(TT::IdentifierOrKeyword(keyword_kind)) = parser.get_current_token_type() {
+        // TODO check if bugfix is correct
+        if let Some(keyword_kind) = parser
+            .get_current_token_type()
+            .and_then(|tt| tt.keyword_kind())
+        {
             if keyword_predicate(keyword_kind) {
                 parser.consolidate_current_keyword()
             }
@@ -1903,19 +1998,19 @@ fn is_operator(token_type: RawTokenType) -> bool {
     matches!(
         token_type,
         TT::Op(_)
-            | TT::Keyword(
-                KK::And
-                    | KK::As
-                    | KK::Div
-                    | KK::In
-                    | KK::Is
-                    | KK::Mod
-                    | KK::Not
-                    | KK::Or
-                    | KK::Shl
-                    | KK::Shr
-                    | KK::Xor,
-            )
+            | TT::Keyword(RKK::Pure(
+                PKK::And
+                    | PKK::As
+                    | PKK::Div
+                    | PKK::In
+                    | PKK::Is
+                    | PKK::Mod
+                    | PKK::Not
+                    | PKK::Or
+                    | PKK::Shl
+                    | PKK::Shr
+                    | PKK::Xor,
+            ))
     )
 }
 
