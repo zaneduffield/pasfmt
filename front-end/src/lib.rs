@@ -1,5 +1,3 @@
-#![deny(clippy::enum_glob_use)]
-
 use encoding_rs::Encoding;
 use pasfmt_core::prelude::*;
 use pasfmt_orchestrator::predule::*;

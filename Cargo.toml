@@ -9,6 +9,12 @@ members = [
 
 resolver = "2"
 
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+
+[workspace.lints.clippy]
+enum_glob_use = "deny"
+
 [workspace.dependencies]
 anstyle = "1.0.7"
 anyhow = "1.0.83"

@@ -24,5 +24,8 @@ indoc = { workspace = true }
 serde_derive = { workspace = true }
 spectral = { workspace = true }
 
+[lints]
+workspace = true
+
 [lib]
 bench = false
