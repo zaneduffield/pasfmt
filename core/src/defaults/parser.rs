@@ -1518,7 +1518,7 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                 }
             }
 
-            line_index -= 1;
+            line_index = line_index.wrapping_sub(1);
         }
     }
 
