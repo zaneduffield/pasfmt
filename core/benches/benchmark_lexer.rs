@@ -39,7 +39,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         random_whitespace_after(s);
     });
 
-    group.finish()
+    group.finish();
 }
 
 fn bench_lexer(
@@ -268,7 +268,7 @@ fn random_short_comment(s: &mut String) {
     s.push_str(start);
 
     let count = rng.gen_range(0..100);
-    s.extend(ALPHABET.choose_multiple(rng, count).map(|s| s.to_owned()));
+    s.extend(ALPHABET.choose_multiple(rng, count).map(ToOwned::to_owned));
 
     s.push_str(end);
 }
@@ -297,7 +297,7 @@ fn random_text_literal(s: &mut String) {
     let rng = &mut rand::thread_rng();
     s.push('\'');
     let count = rng.gen_range(0..100);
-    s.extend(STR_CHARS.choose_multiple(rng, count).map(|s| s.to_owned()));
+    s.extend(STR_CHARS.choose_multiple(rng, count).map(ToOwned::to_owned));
     s.push('\'');
 }
 
@@ -306,31 +306,31 @@ fn random_number_literal(s: &mut String) {
 
     let rng = &mut rand::thread_rng();
 
-    let num_digits = rng.gen_range(1..15) as usize;
+    let num_digits: usize = rng.gen_range(1..15);
     s.extend(
         digits
             .choose_multiple(rng, num_digits)
-            .map(|s| s.to_owned()),
+            .map(ToOwned::to_owned),
     );
 
     if rng.gen_bool(0.2) {
         s.push('.');
-        let num_digits = rng.gen_range(1..5) as usize;
+        let num_digits: usize = rng.gen_range(1..5);
         s.extend(
             digits
                 .choose_multiple(rng, num_digits)
-                .map(|s| s.to_owned()),
+                .map(ToOwned::to_owned),
         );
     }
 
     if rng.gen_bool(0.1) {
         s.push('e');
         s.push(*['+', '-'].choose(rng).unwrap());
-        let num_digits = rng.gen_range(1..3) as usize;
+        let num_digits: usize = rng.gen_range(1..3);
         s.extend(
             digits
                 .choose_multiple(rng, num_digits)
-                .map(|s| s.to_owned()),
+                .map(ToOwned::to_owned),
         );
     }
 }

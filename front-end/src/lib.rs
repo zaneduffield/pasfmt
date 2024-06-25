@@ -1,5 +1,3 @@
-#![deny(clippy::enum_glob_use)]
-
 use encoding_rs::Encoding;
 use pasfmt_core::prelude::*;
 use pasfmt_orchestrator::predule::*;
@@ -51,7 +49,7 @@ pub struct FormattingSettings {
 impl Default for FormattingSettings {
     fn default() -> Self {
         Self {
-            reconstruction: Default::default(),
+            reconstruction: Reconstruction::default(),
             encoding: default_encoding(),
         }
     }

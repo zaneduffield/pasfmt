@@ -28,6 +28,9 @@ assert_fs = { workspace = true }
 predicates = { workspace = true }
 glob = { workspace = true }
 
+[lints]
+workspace = true
+
 [[bench]]
 name = "benchmark_submodules"
 harness = false

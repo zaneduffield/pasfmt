@@ -59,13 +59,13 @@ fn bench_lex_submodules(submodules: &[(&str, &PathBuf)], c: &mut Criterion) {
             })
             .collect();
 
-        let total_bytes: usize = inputs.iter().map(|i| i.len()).sum();
+        let total_bytes: usize = inputs.iter().map(String::len).sum();
         group.throughput(criterion::Throughput::Bytes(total_bytes as u64));
         group.bench_function(*name, |b| {
             b.iter(|| {
-                inputs.iter().for_each(|input| {
+                for input in &inputs {
                     DelphiLexer {}.lex(input);
-                })
+                }
             });
         });
     }

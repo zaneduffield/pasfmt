@@ -895,13 +895,13 @@ mod tests {
                 })
                 .collect();
 
-            semicolon_indices.iter().for_each(|&&semicolon_index| {
+            for &&semicolon_index in &semicolon_indices {
                 if let Some(semicolon_formatting_data) =
                     formatted_tokens.get_formatting_data_mut(semicolon_index)
                 {
                     semicolon_formatting_data.spaces_before = 1;
                 }
-            });
+            }
         }
     }
 

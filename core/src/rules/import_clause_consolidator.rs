@@ -137,9 +137,9 @@ mod tests {
             .collect_vec();
 
         assert_that(&lines).has_length(expected_lines.len());
-        expected_lines.iter().for_each(|expected_line| {
+        for expected_line in &expected_lines {
             assert_that(&lines).contains(expected_line);
-        });
+        }
     }
 
     #[test]
