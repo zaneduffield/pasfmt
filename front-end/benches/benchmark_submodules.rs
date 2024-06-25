@@ -13,7 +13,7 @@ use walkdir::WalkDir;
 use criterion::{criterion_group, criterion_main, Criterion};
 
 use pasfmt::{format_with_settings, FormattingSettings};
-use pasfmt_orchestrator::predule::*;
+use pasfmt_orchestrator::prelude::*;
 
 pasfmt_config!(Config);
 

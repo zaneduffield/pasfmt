@@ -1,6 +1,6 @@
 use encoding_rs::Encoding;
 use pasfmt_core::prelude::*;
-use pasfmt_orchestrator::predule::*;
+use pasfmt_orchestrator::prelude::*;
 use serde_derive::Deserialize;
 
 #[cfg(windows)]

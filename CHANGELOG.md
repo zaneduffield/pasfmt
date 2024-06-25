@@ -53,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Block comment kind for multiline comments on their own line.
 - Parsing of anonymous routines with trailing semicolons.
 - Errors on writing non-ASCII data in an ANSI encoding to a Windows Console. Now written as Unicode.
+- Typo in `pasfmt_orchestrator::prelude` module name (was `predule`).
 
 ## [0.3.0] - 2024-05-29
 

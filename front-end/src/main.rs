@@ -6,7 +6,7 @@ use log::debug;
 use log::error;
 use pasfmt::format_with_settings;
 use pasfmt::FormattingSettings;
-use pasfmt_orchestrator::predule::*;
+use pasfmt_orchestrator::prelude::*;
 
 pasfmt_config!(
     #[command(bin_name = "pasfmt")]
