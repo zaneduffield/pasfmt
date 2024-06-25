@@ -169,3 +169,4 @@ zero_sized_map_values  = "warn"
 
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "deny"
+unknown-lints = 'warn'
