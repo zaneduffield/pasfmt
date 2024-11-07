@@ -1,9 +1,9 @@
-use pasfmt::format_with_settings;
-use pasfmt::FormattingSettings;
+use export_all::format_with_settings;
+use export_all::FormattingSettings;
 use pasfmt_orchestrator::predule::*;
 
 pasfmt_config!(
-    #[command(bin_name = "pasfmt")]
+    #[command(bin_name = "export-all")]
     Config
 );
 

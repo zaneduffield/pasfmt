@@ -1,8 +1,10 @@
 #![deny(clippy::enum_glob_use)]
 
+mod routine_exporter;
 use encoding_rs::Encoding;
 use pasfmt_core::prelude::*;
 use pasfmt_orchestrator::predule::*;
+use routine_exporter::RoutineExporter;
 use serde_derive::{Deserialize, Serialize};
 
 #[cfg(windows)]
@@ -81,25 +83,13 @@ pub fn format_with_settings(
     formatting_settings: FormattingSettings,
     config: PasFmtConfiguration,
 ) -> anyhow::Result<()> {
-    let uses_clause_formatter = &UsesClauseFormatter {};
-    let eof_newline_formatter = &EofNewline {};
     let formatter = FileFormatter::new(
         Formatter::builder()
             .lexer(DelphiLexer {})
             .parser(DelphiLogicalLineParser {})
             .token_consolidator(DistinguishGenericTypeParamsConsolidator {})
             .lines_consolidator(ImportClauseConsolidator {})
-            .token_ignorer(FormattingToggler {})
-            .token_ignorer(IgnoreNonUnitImportClauses {})
-            .file_formatter(TokenSpacing {})
-            .line_formatter(RemoveRepeatedNewlines {})
-            .line_formatter(FormatterSelector::new(
-                |logical_line_type| match logical_line_type {
-                    LogicalLineType::ImportClause => Some(uses_clause_formatter),
-                    LogicalLineType::Eof => Some(eof_newline_formatter),
-                    _ => None,
-                },
-            ))
+            .lines_consolidator(RoutineExporter {})
             .reconstructor(DelphiLogicalLinesReconstructor::new(
                 formatting_settings.reconstruction.try_into()?,
             ))
