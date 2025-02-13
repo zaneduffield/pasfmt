@@ -13,7 +13,10 @@ pub trait TokenConsolidator {
 }
 
 pub trait LogicalLineParser {
-    fn parse<'a>(&self, input: Vec<RawToken<'a>>) -> (Vec<LogicalLine>, Vec<Token<'a>>);
+    fn parse<'a>(
+        &self,
+        input: Vec<RawToken<'a>>,
+    ) -> (Vec<LogicalLine>, Vec<Token<'a>>, TokenMarker);
 }
 
 pub trait LogicalLinesConsolidator {

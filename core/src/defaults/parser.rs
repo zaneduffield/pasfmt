@@ -23,6 +23,7 @@ use fxhash::FxHashMap;
 use fxhash::FxHashSet;
 use itertools::Itertools;
 use log::trace;
+use log::warn;
 
 use crate::lang::ConditionalDirectiveKind as CDK;
 
@@ -32,16 +33,21 @@ use crate::lang::KeywordKind as KK;
 use crate::lang::OperatorKind as OK;
 use crate::lang::RawTokenType as TT;
 use crate::lang::*;
+use crate::prelude::TokenMarker;
 use crate::traits::LogicalLineParser;
 
 type LogicalLineRef = usize;
 
 pub struct DelphiLogicalLineParser {}
 impl LogicalLineParser for DelphiLogicalLineParser {
-    fn parse<'a>(&self, mut input: Vec<RawToken<'a>>) -> (Vec<LogicalLine>, Vec<Token<'a>>) {
-        let logical_lines = parse_file(&mut input);
+    fn parse<'a>(
+        &self,
+        mut input: Vec<RawToken<'a>>,
+    ) -> (Vec<LogicalLine>, Vec<Token<'a>>, TokenMarker) {
+        let mut ignored = TokenMarker::default();
+        let logical_lines = parse_file(&mut input, &mut ignored);
         let consolidated_tokens = input.into_iter().map(RawToken::into).collect();
-        (logical_lines, consolidated_tokens)
+        (logical_lines, consolidated_tokens, ignored)
     }
 }
 
@@ -64,12 +70,39 @@ impl LogicalLineParser for DelphiLogicalLineParser {
     * Consolidating the tokens between passes
     * Creating the lines of the individual conditional directive tokens
 */
-fn parse_file(tokens: &mut [RawToken]) -> Vec<LogicalLine> {
+fn parse_file(tokens: &mut [RawToken], ignored: &mut TokenMarker) -> Vec<LogicalLine> {
     let conditional_branches = get_conditional_branches_per_directive(tokens);
-    let passes = get_all_conditional_branch_paths(&conditional_branches);
     let mut lines = FxHashMap::default();
     let mut attributed_directives = FxHashSet::default();
     let mut pass_tokens = Vec::new();
+
+    let last_indices = get_directive_level_last_indices(&conditional_branches);
+
+    let mut conditional_depth = 0;
+    let mut num_passes = 1;
+    for last_idx in &last_indices {
+        num_passes *= last_idx + 1;
+        if num_passes >= 128 && num_passes * tokens.len() > 1_000_000 {
+            break;
+        }
+        conditional_depth += 1;
+    }
+
+    let passes: Vec<_> = get_all_conditional_branch_paths(&conditional_branches, conditional_depth)
+        .into_iter()
+        .collect();
+
+    if conditional_depth < last_indices.len() {
+        warn!(
+            "Skipping nested conditional code beyond depth {}",
+            conditional_depth
+        );
+
+        for tok in get_unparsed_tokens(tokens, &passes, &conditional_branches) {
+            ignored.mark(tok);
+        }
+    };
+
     for pass in passes {
         get_pass_tokens(tokens, &pass, &conditional_branches, &mut pass_tokens);
         let pass_lines =
@@ -2458,8 +2491,9 @@ fn get_directive_level_last_indices(conditional_branches: &[ConditionalBranch]) 
 
 fn get_all_conditional_branch_paths(
     branches: &[ConditionalBranch],
+    max_depth: usize,
 ) -> impl IntoIterator<Item = ConditionalBranch> {
-    get_pass_directive_indices(&get_directive_level_last_indices(branches))
+    get_pass_directive_indices(&get_directive_level_last_indices(branches), max_depth)
         .into_iter()
         .map(|ids| ConditionalBranch {
             levels: ids
@@ -2523,13 +2557,12 @@ fn get_pass_tokens(
     pass_tokens: &mut Vec<usize>,
 ) {
     pass_tokens.clear();
-    let mut current_branch;
     let mut branch_included = true;
     let mut conditional_index = 0;
     for (index, token_type) in tokens.iter().map(RawToken::get_token_type).enumerate() {
         match token_type {
             TT::ConditionalDirective(_) => {
-                current_branch = &conditional_branches[conditional_index];
+                let current_branch = &conditional_branches[conditional_index];
                 branch_included = conditional_branch.includes(current_branch);
                 conditional_index += 1;
             }
@@ -2539,10 +2572,45 @@ fn get_pass_tokens(
     }
 }
 
-fn get_pass_directive_indices(last_branches: &[usize]) -> impl IntoIterator<Item = Vec<usize>> {
+fn get_unparsed_tokens(
+    tokens: &[RawToken],
+    passes: &[ConditionalBranch],
+    conditional_branches: &[ConditionalBranch],
+) -> Vec<usize> {
+    let mut result = vec![];
+
+    let mut current_branch;
+    let mut branch_included = true;
+    let mut conditional_index = 0;
+    for (index, token_type) in tokens.iter().map(RawToken::get_token_type).enumerate() {
+        match token_type {
+            TT::ConditionalDirective(_) => {
+                current_branch = &conditional_branches[conditional_index];
+                branch_included = passes.iter().any(|branch| branch.includes(current_branch));
+                conditional_index += 1;
+            }
+            _ if !branch_included => result.push(index),
+            _ => {}
+        }
+    }
+
+    result
+}
+
+fn get_pass_directive_indices(
+    last_branches: &[usize],
+    max_depth: usize,
+) -> impl IntoIterator<Item = Vec<usize>> {
     last_branches
         .iter()
-        .map(|&index| 0..=index)
+        .enumerate()
+        .map(|(depth, &index)| {
+            if (depth + 1) > max_depth {
+                0..=0
+            } else {
+                0..=index
+            }
+        })
         .multi_cartesian_product()
 }
 // Utility types

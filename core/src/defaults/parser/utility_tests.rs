@@ -196,7 +196,7 @@ mod passes {
         let raw_tokens = DelphiLexer {}.lex(&input);
         let conditional_branches = get_conditional_branches_per_directive(&raw_tokens);
         let mut pass_tokens = Vec::new();
-        let pass_strings = get_all_conditional_branch_paths(&conditional_branches)
+        let pass_strings = get_all_conditional_branch_paths(&conditional_branches, usize::MAX)
             .into_iter()
             .map(|branch| {
                 get_pass_tokens(
@@ -285,7 +285,7 @@ fn no_eof() {
     ];
     let tokens_len = tokens.len();
 
-    let (lines, consolidated_tokens) = DelphiLogicalLineParser {}.parse(tokens);
+    let (lines, consolidated_tokens, _) = DelphiLogicalLineParser {}.parse(tokens);
     assert_that(&lines).has_length(1);
     assert_that(lines[0].get_tokens()).has_length(tokens_len);
     assert_that(&tokens_len).is_equal_to(consolidated_tokens.len());

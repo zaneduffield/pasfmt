@@ -93,14 +93,14 @@ impl Formatter {
         for token_consolidator in self.token_consolidators.iter() {
             token_consolidator.consolidate(&mut tokens);
         }
-        let (mut lines, mut tokens) = self.logical_line_parser.parse(tokens);
+        let (mut lines, mut tokens, mut ignored_tokens) = self.logical_line_parser.parse(tokens);
         for line_consolidator in self.post_parse_consolidators.iter() {
             line_consolidator.consolidate((&mut tokens, &mut lines));
         }
-        let mut ignored_tokens = TokenMarker::default();
         for token_ignorer in &self.token_ignorers {
             token_ignorer.ignore_tokens((&tokens, &lines), &mut ignored_tokens)
         }
+
         let mut tokens_marked_for_deletion = TokenMarker::default();
         for token_remover in self.token_removers.iter() {
             token_remover.remove_tokens((&tokens, &lines), &mut tokens_marked_for_deletion);

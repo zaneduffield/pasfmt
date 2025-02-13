@@ -24,7 +24,7 @@ fn run_test(input: &str) -> datatest_stable::Result<()> {
     } = parse_dsl(input)?;
 
     let tokens = DelphiLexer {}.lex(&input_str);
-    let (actual_lines, tokens) = DelphiLogicalLineParser {}.parse(tokens);
+    let (actual_lines, tokens, _) = DelphiLogicalLineParser {}.parse(tokens);
 
     let actual_lines: Vec<AssertLL> = actual_lines.into_iter().map_into().collect();
 

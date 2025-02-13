@@ -26,7 +26,7 @@ fn run_casing_token_consolidation_test(input: &str) {
     let parser = &DelphiLogicalLineParser {};
     eprintln!("input: {input}");
     let tokens = lexer.lex(input);
-    let (_, tokens) = parser.parse(tokens);
+    let (_, tokens, _) = parser.parse(tokens);
 
     let test_data = tokens
         .iter()
@@ -644,7 +644,7 @@ fn run_test(
     let parser = &DelphiLogicalLineParser {};
     eprintln!("input: {input}");
     let tokens = lexer.lex(input);
-    let (_, mut tokens) = parser.parse(tokens);
+    let (_, mut tokens, _) = parser.parse(tokens);
 
     DistinguishGenericTypeParamsConsolidator {}.consolidate(&mut tokens);
 
