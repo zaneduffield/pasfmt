@@ -22,34 +22,31 @@ fn main() -> ExitCode {
     with_log_fn(
         |ctx: Option<LogContext<'_>>, event: LogEvent| {
             if let Some(ctx) = ctx {
+                let mut files = SimpleFiles::new();
+                let file_id = files.add(ctx.source, ctx.data_to_fmt);
+                let severity = match event.level {
+                    log::Level::Error => Severity::Error,
+                    log::Level::Warn => Severity::Warning,
+                    _ => Severity::Note,
+                };
+
+                let mut diag = Diagnostic::new(severity).with_message(format!("{}", event.args));
+
                 if let Some(file_pos) = event.file_pos {
-                    let mut files = SimpleFiles::new();
-                    let file_id = files.add(ctx.source, ctx.data_to_fmt);
-                    let severity = match event.level {
-                        log::Level::Error => Severity::Error,
-                        log::Level::Warn => Severity::Warning,
-                        _ => Severity::Note,
-                    };
-
-                    let diag = Diagnostic::new(severity)
-                        .with_message(format!("{}", event.args))
-                        .with_labels(vec![Label::primary(
-                            file_id,
-                            match file_pos {
-                                FilePos::Raw { pos, len } => pos..(pos + len),
-                                _ => panic!(),
-                            },
-                        )]);
-
-                    let writer = StandardStream::stderr(termcolor::ColorChoice::Always);
-                    let config = term::Config::default();
-                    term::emit(&mut writer.lock(), &config, &files, &diag).expect("failed to log");
-                    return;
+                    diag = diag.with_labels(vec![Label::primary(
+                        file_id,
+                        match file_pos {
+                            FilePos::Raw { pos, len } => pos..(pos + len),
+                            _ => panic!(),
+                        },
+                    )]);
+                } else {
+                    diag = diag.with_notes(vec![format!("{}", ctx.source)]);
                 }
-                eprintln!(
-                    "{}: (source: {}) msg: {}",
-                    event.level, ctx.source, event.args,
-                );
+
+                let writer = StandardStream::stderr(termcolor::ColorChoice::Always);
+                let config = term::Config::default();
+                term::emit(&mut writer.lock(), &config, &files, &diag).expect("failed to log");
                 return;
             }
             eprintln!("{}: {}", event.level, event.args);
