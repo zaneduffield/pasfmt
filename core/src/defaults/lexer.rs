@@ -60,6 +60,10 @@ fn lex(mut input: &str) -> (&str, Vec<RawToken>) {
     let (input, eof_token) = eof(input);
     tokens.push(to_final_token(eof_token));
 
+    if tokens.is_empty() {
+        panic!("HERE");
+    }
+
     (input, tokens)
 }
 
