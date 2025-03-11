@@ -39,8 +39,15 @@ type LogicalLineRef = usize;
 pub struct DelphiLogicalLineParser {}
 impl LogicalLineParser for DelphiLogicalLineParser {
     fn parse<'a>(&self, mut input: Vec<RawToken<'a>>) -> (Vec<LogicalLine>, Vec<Token<'a>>) {
-        let logical_lines = parse_file(&mut input);
-        let consolidated_tokens = input.into_iter().map(RawToken::into).collect();
+        let mut logical_lines = parse_file(&mut input);
+        let mut consolidated_tokens: Vec<_> = input.into_iter().map(RawToken::into).collect();
+        logical_lines.shrink_to_fit();
+        consolidated_tokens.shrink_to_fit();
+
+        for line in &mut logical_lines {
+            line.get_tokens_mut().shrink_to_fit();
+        }
+
         (logical_lines, consolidated_tokens)
     }
 }

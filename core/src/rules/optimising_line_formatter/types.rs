@@ -46,7 +46,7 @@ pub(super) enum RawDecision {
 }
 
 impl RawDecision {
-    pub(super) fn with_continuation(self, continuations: u16) -> Decision {
+    pub(super) fn with_continuation(self, continuations: u8) -> Decision {
         match self {
             Self::Break => Decision::Break { continuations },
             Self::Continue => Decision::Continue,
@@ -62,7 +62,7 @@ pub(super) enum Decision {
     ///
     /// After the first decision, subsequent breaks will have an associated
     /// continuation.
-    Break { continuations: u16 },
+    Break { continuations: u8 },
 
     /// Remove all line breaks from before a token
     Continue,
@@ -104,8 +104,8 @@ pub(super) enum FirstDecision {
 /// the parent lines' decisions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) struct LineWhitespace {
-    pub(super) indentations: u16,
-    pub(super) continuations: u16,
+    pub(super) indentations: u8,
+    pub(super) continuations: u8,
 }
 
 impl Add for LineWhitespace {

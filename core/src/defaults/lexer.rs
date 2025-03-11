@@ -31,7 +31,7 @@ struct LexedToken<'a> {
 }
 
 fn lex_complete(input: &str) -> Vec<RawToken> {
-    let (remaining, tokens) = lex(input);
+    let (remaining, mut tokens) = lex(input);
 
     // Remaining input is always a programming error; invalid input should turn into 'Unknown' tokens.
     assert!(
@@ -39,6 +39,7 @@ fn lex_complete(input: &str) -> Vec<RawToken> {
         "failed to lex the entire input. Remaining input starts with: {}",
         rounded_prefix(remaining, 100)
     );
+    tokens.shrink_to_fit();
     tokens
 }
 

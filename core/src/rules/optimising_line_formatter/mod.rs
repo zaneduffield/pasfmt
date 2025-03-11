@@ -58,7 +58,6 @@ impl LogicalLineFileFormatter for OptimisingLineFormatter {
         }
 
         let (token_types, token_lengths) = formatted_tokens
-            .get_tokens()
             .iter()
             .map(|token| {
                 (
@@ -196,7 +195,7 @@ impl<'this> InternalOptimisingLineFormatter<'this, '_> {
         }
         let optimal_solution = self.find_optimal_solution(
             LineWhitespace {
-                indentations: line.1.get_level(),
+                indentations: line.1.get_level() as u8,
                 continuations: 0,
             },
             line,
@@ -675,7 +674,7 @@ impl<'this> InternalOptimisingLineFormatter<'this, '_> {
         node: &FormattingNode,
         parent_contexts: &SpecificContextDataStack,
         token_line_length: u32,
-        parent_continuations: u16,
+        parent_continuations: u8,
     ) -> PotentialSolutions {
         let global_token_index = line.1.get_tokens()[node.next_line_index as usize];
 
@@ -916,7 +915,7 @@ impl<'this> InternalOptimisingLineFormatter<'this, '_> {
                     .find_optimal_solution(
                         child_starting_ws
                             + LineWhitespace {
-                                indentations: line.1.get_level(),
+                                indentations: line.1.get_level() as u8,
                                 continuations: 0,
                             },
                         line,

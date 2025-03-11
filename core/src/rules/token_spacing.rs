@@ -55,7 +55,7 @@ impl LogicalLineFileFormatter for TokenSpacing {
 fn max_one_either_side(
     token_index: usize,
     formatted_tokens: &mut FormattedTokens<'_>,
-) -> (Option<u16>, Option<u16>) {
+) -> (Option<u8>, Option<u8>) {
     (
         formatted_tokens
             .get_formatting_data(token_index)
@@ -66,7 +66,7 @@ fn max_one_either_side(
     )
 }
 
-fn spaces_before(token_type: Option<TokenType>, spaces: u16) -> Option<u16> {
+fn spaces_before(token_type: Option<TokenType>, spaces: u8) -> Option<u8> {
     match token_type {
         // There shouldn't be any whitespace before the first token in a file.
         None => Some(0),
@@ -75,7 +75,7 @@ fn spaces_before(token_type: Option<TokenType>, spaces: u16) -> Option<u16> {
     }
 }
 
-fn spaces_after(token_type: Option<TokenType>, spaces: u16) -> Option<u16> {
+fn spaces_after(token_type: Option<TokenType>, spaces: u8) -> Option<u8> {
     match token_type {
         Some(TT::Op(OK::RBrack | OK::RParen | OK::GreaterThan(ChevronKind::Generic))) => Some(0),
         _ => Some(spaces),
@@ -85,7 +85,7 @@ fn spaces_after(token_type: Option<TokenType>, spaces: u16) -> Option<u16> {
 fn one_space_either_side(
     token_index: usize,
     formatted_tokens: &mut FormattedTokens<'_>,
-) -> (Option<u16>, Option<u16>) {
+) -> (Option<u8>, Option<u8>) {
     (
         spaces_before(
             formatted_tokens.get_token_type_for_index(token_index.wrapping_sub(1)),
@@ -101,7 +101,7 @@ fn one_space_either_side(
 fn one_space_before(
     token_index: usize,
     formatted_tokens: &mut FormattedTokens<'_>,
-) -> (Option<u16>, Option<u16>) {
+) -> (Option<u8>, Option<u8>) {
     (
         spaces_before(
             formatted_tokens.get_token_type_for_index(token_index.wrapping_sub(1)),
@@ -115,7 +115,7 @@ fn space_operator(
     operator: OperatorKind,
     token_index: usize,
     formatted_tokens: &mut FormattedTokens<'_>,
-) -> (Option<u16>, Option<u16>) {
+) -> (Option<u8>, Option<u8>) {
     let token_type_by_idx = |token_idx: usize| formatted_tokens.get_token_type_for_index(token_idx);
     let prev_real_token_type = |token_idx: usize| {
         formatted_tokens
@@ -123,9 +123,7 @@ fn space_operator(
             .iter()
             .rev()
             .skip(formatted_tokens.get_tokens().len() - token_idx)
-            .find_map(|token| {
-                Some(token.0.get_token_type()).filter(|t| !t.is_comment_or_directive())
-            })
+            .find_map(|token| Some(token.get_token_type()).filter(|t| !t.is_comment_or_directive()))
     };
 
     let binary_op_spacing = (Some(1), Some(1));

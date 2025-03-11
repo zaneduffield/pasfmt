@@ -479,13 +479,13 @@ impl LogicalLine {
     }
 }
 
-#[derive(Default, PartialEq, Eq)]
+#[derive(Default, PartialEq, Eq, Clone, Copy)]
 pub struct FormattingData {
     ignored: bool,
-    pub newlines_before: u16,
-    pub indentations_before: u16,
-    pub continuations_before: u16,
-    pub spaces_before: u16,
+    pub newlines_before: u8,
+    pub indentations_before: u8,
+    pub continuations_before: u8,
+    pub spaces_before: u8,
 }
 
 impl From<&str> for FormattingData {
@@ -501,7 +501,7 @@ impl From<(&str, bool)> for FormattingData {
             .filter(|char| char.eq(&'\n'))
             .count()
             .try_into()
-            .unwrap_or(u16::MAX);
+            .unwrap_or(u8::MAX);
 
         // Rusts .lines() fn doesn't treat a trailing newline as creating
         // another line.
@@ -513,7 +513,7 @@ impl From<(&str, bool)> for FormattingData {
 
         let spaces_before = (last_line.len() - last_line.trim_start().len())
             .try_into()
-            .unwrap_or(u16::MAX);
+            .unwrap_or(u8::MAX);
 
         FormattingData {
             ignored,
@@ -532,12 +532,13 @@ impl FormattingData {
 }
 
 pub struct FormattedTokens<'a> {
-    tokens: Vec<(&'a Token<'a>, FormattingData)>,
+    tokens: &'a [Token<'a>],
+    data: Vec<FormattingData>,
 }
 impl<'a> FormattedTokens<'a> {
     pub fn new_from_tokens(tokens: &'a [Token<'a>], ignored_tokens: &TokenMarker) -> Self {
         FormattedTokens {
-            tokens: tokens
+            data: tokens
                 .iter()
                 .enumerate()
                 .map(|(i, token)| {
@@ -545,35 +546,39 @@ impl<'a> FormattedTokens<'a> {
                         token.get_leading_whitespace(),
                         ignored_tokens.is_marked(&i),
                     ));
-                    (token, formatting_data)
+                    formatting_data
                 })
                 .collect(),
+            tokens,
         }
     }
-    pub fn new(tokens: Vec<(&'a Token<'a>, FormattingData)>) -> Self {
-        FormattedTokens { tokens }
+    // pub fn new(tokens: Vec<(&'a Token<'a>, FormattingData)>) -> Self {
+    //     FormattedTokens { data: tokens.into_iter().map(|t| t.1).collect(), tokens }
+    // }
+    pub fn get_tokens(&self) -> &'a [Token<'a>] {
+        self.tokens
     }
-    pub fn get_tokens(&self) -> &Vec<(&'a Token<'a>, FormattingData)> {
-        &self.tokens
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = (&'a Token<'a>, &FormattingData)> {
+        self.tokens.iter().zip(self.data.iter())
     }
 
-    pub fn get_token(&self, index: usize) -> Option<&(&'a Token<'a>, FormattingData)> {
-        self.tokens.get(index)
+    pub fn get_token(&self, index: usize) -> Option<(&'a Token<'a>, &FormattingData)> {
+        self.tokens.get(index).zip(self.data.get(index))
     }
 
-    pub fn get_token_mut(&mut self, index: usize) -> Option<&mut (&'a Token<'a>, FormattingData)> {
-        self.tokens.get_mut(index)
+    pub fn get_token_mut(&mut self, index: usize) -> Option<(&'a Token<'a>, &mut FormattingData)> {
+        self.tokens.get(index).zip(self.data.get_mut(index))
     }
 
     pub fn get_formatting_data(&self, index: usize) -> Option<&FormattingData> {
-        self.tokens.get(index).map(|t| &t.1)
+        self.data.get(index)
     }
 
     pub fn get_formatting_data_mut(&mut self, index: usize) -> Option<&mut FormattingData> {
-        self.tokens.get_mut(index).map(|t| &mut t.1)
+        self.data.get_mut(index)
     }
     pub fn get_token_type_for_index(&self, index: usize) -> Option<TokenType> {
-        self.tokens.get(index).map(|t| t.0.get_token_type())
+        self.tokens.get(index).map(|t| t.get_token_type())
     }
 }
 

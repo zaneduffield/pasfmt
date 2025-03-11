@@ -997,7 +997,7 @@ mod tests {
                     .get_formatting_data_mut(first_line_token)
                     .unwrap();
                 formatting_data.spaces_before = 0;
-                formatting_data.indentations_before = index as u16;
+                formatting_data.indentations_before = index as u8;
             }
         }
     }

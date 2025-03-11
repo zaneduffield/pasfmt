@@ -294,7 +294,7 @@ impl SpecificContextDataStack<'_> {
             .find(|(ctx, _)| filter.get_filter()(ctx.context_type))
     }
 
-    pub(super) fn get_continuation_count(&self, line_index: u32) -> u16 {
+    pub(super) fn get_continuation_count(&self, line_index: u32) -> u8 {
         self.specific_stack
             .ctx_data_iter(self.solution)
             .filter_map(|(ctx, data)| {
@@ -307,7 +307,7 @@ impl SpecificContextDataStack<'_> {
                     None
                 }
             })
-            .sum::<u64>() as u16
+            .sum::<u64>() as u8
     }
 
     pub(super) fn iter(
