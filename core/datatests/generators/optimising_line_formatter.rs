@@ -285,7 +285,7 @@ mod directives {
                         A. {$if} A {$else} B {$endif}
                             (
                                 {$if} A.A {$else} B.B {$endif}
-                                    + {$if} A.A {$else} B.B {$endif};
+                                    + {$if} A.A {$else} B.B {$endif}
                             );
                     A := {$if} AAAA. {$else} AAAA. {$endif} BBBB;
                     AAAAAA :=
@@ -4616,7 +4616,8 @@ mod regression {
                 foo(
                 {$endif}
                     procedure a;
-                    begin end
+                begin
+                end
                 {$ifdef A}
                 {$else}
                 );

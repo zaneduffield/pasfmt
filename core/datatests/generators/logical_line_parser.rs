@@ -33,6 +33,7 @@ pub fn generate_test_files(root_dir: &Path) {
     statements::generate(root_dir);
     attributes::generate(root_dir);
     semicolons::generate(root_dir);
+    recovery::generate(root_dir);
     regression::generate(root_dir);
 }
 
@@ -3174,6 +3175,28 @@ mod semicolons {
                 1  |begin{{1}}
                 _^1|  Foo{}
                 1  |end;
+            ",
+        );
+    }
+}
+
+mod recovery {
+    use super::*;
+
+    pub fn generate(root_dir: &Path) {
+        generate_test_cases!(
+            root_dir,
+            unmatched_paren_ends_at_semicolon = "
+                _|(A,A,A;
+                _|A;
+            ",
+            unmatched_bracket_ends_at_semicolon = "
+                _|[A,A,A;
+                _|A;
+            ",
+            unmatched_generics_ends_at_something = "
+                _|<A,A,A;
+                _|procedure A;
             ",
         );
     }

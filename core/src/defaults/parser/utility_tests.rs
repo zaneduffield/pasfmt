@@ -268,7 +268,7 @@ fn test_expression_parsing(input: &str, token_count: Option<usize>) {
         &mut attributed_directives,
     );
     let original_line_count = parser.current_line.len();
-    parser.parse_expression();
+    parser.parse_expression(Semicolons::Excluded);
     assert_that(&parser.pass_index).is_equal_to(token_count);
     assert_that(&parser.brack_level).is_equal_to(0);
     assert_that(&parser.paren_level).is_equal_to(0);

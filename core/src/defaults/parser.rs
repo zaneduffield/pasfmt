@@ -317,7 +317,7 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                 }
                 TT::Op(OK::LBrack) if self.is_at_start_of_line() => {
                     // If there is a `[` at the start of a line, it must be an attribute
-                    self.skip_pair();
+                    self.skip_pair(Semicolons::Excluded);
                     self.set_logical_line_type(LogicalLineType::Attribute);
                     self.make_unfinished_line();
                 }
@@ -479,7 +479,7 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                         level: ParserContextLevel::Level(1),
                     });
                     self.parse_comment_lines();
-                    self.parse_expression(); // Identifier
+                    self.parse_expression(Semicolons::Excluded); // Identifier
                     self.simple_op_until(after_semicolon(), parse_exports);
                     self.set_logical_line_type(LLT::ExportClause);
                     self.finish_logical_line();
@@ -551,6 +551,7 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                     self.finish_logical_line();
                     let context_type = match keyword_kind {
                         KK::Type => ContextType::TypeBlock,
+                        KK::Const(_) => ContextType::ConstBlock,
                         _ => ContextType::DeclarationBlock,
                     };
                     self.parse_block(ParserContext {
@@ -601,10 +602,10 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                 TT::Keyword(KK::Asm) => self.parse_asm_block(),
                 TT::Keyword(KK::Raise) => {
                     self.next_token();
-                    self.parse_expression();
+                    self.parse_expression(Semicolons::Excluded);
                     if let Some(KK::At) = self.get_current_keyword_kind() {
                         self.consolidate_current_keyword();
-                        self.parse_expression();
+                        self.parse_expression(Semicolons::Excluded);
                     }
                 }
                 _ => self.parse_statement(),
@@ -887,6 +888,7 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                         ContextType::LabelBlock
                         | ContextType::TypeBlock
                         | ContextType::DeclarationBlock
+                        | ContextType::ConstBlock
                         | ContextType::VisibilityBlock => Some(LLT::Declaration),
                         ContextType::Statement(StatementKind::VariantRecord) => {
                             Some(LLT::VariantRecordCaseArm)
@@ -916,14 +918,14 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                         self.next_token(); // Helper
 
                         if self.get_current_token_type() == Some(TT::Op(OK::LParen)) {
-                            self.parse_parens(); // Parent types
+                            self.parse_parens(Semicolons::Excluded); // Parent types
                         }
                         if let Some(KK::For) = self.get_current_keyword_kind() {
                             self.next_token(); // For
                         }
-                        self.parse_expression(); // Type name
+                        self.parse_expression(Semicolons::Excluded); // Type name
                     } else if self.get_current_token_type() == Some(TT::Op(OK::LParen)) {
-                        self.parse_parens(); // Parent types
+                        self.parse_parens(Semicolons::Excluded); // Parent types
                     }
                     match self.get_current_token_type() {
                         Some(TT::Keyword(KK::Of)) => {
@@ -1005,7 +1007,18 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                     {
                         self.parse_variant_record_fields();
                     } else {
-                        self.parse_parens()
+                        self.parse_parens(
+                            if self
+                                .context
+                                .contexts
+                                .iter()
+                                .any(|c| matches!(c.context_type, ContextType::ConstBlock))
+                            {
+                                Semicolons::Included
+                            } else {
+                                Semicolons::Excluded
+                            },
+                        )
                     }
                 }
                 TT::Op(OK::Semicolon) => {
@@ -1016,7 +1029,7 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                 TT::Op(OK::LessThan(_))
                     if matches!(self.get_last_context_type(), Some(ContextType::TypeBlock)) =>
                 {
-                    self.skip_pair();
+                    self.skip_pair(Semicolons::Included);
                 }
                 TT::Op(OK::Colon) => {
                     let parent = self.get_line_parent_of_current_token();
@@ -1027,6 +1040,7 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                     } else if let Some(
                         ContextType::VisibilityBlock
                         | ContextType::DeclarationBlock
+                        | ContextType::ConstBlock
                         | ContextType::TypeDeclaration,
                     ) = self.get_last_context_type()
                     {
@@ -1048,6 +1062,7 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                         Some(
                             ContextType::DeclarationBlock
                                 | ContextType::TypeBlock
+                                | ContextType::ConstBlock
                                 | ContextType::Statement(_)
                         )
                     ) && !self
@@ -1158,6 +1173,7 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                             self.get_last_context_type(),
                             Some(
                                 ContextType::DeclarationBlock
+                                    | ContextType::ConstBlock
                                     | ContextType::VisibilityBlock
                                     | ContextType::Statement(
                                         StatementKind::Case | StatementKind::VariantRecord
@@ -1265,7 +1281,7 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
             self.current_line.pop();
         }
     }
-    fn parse_parens(&mut self) {
+    fn parse_parens(&mut self, semicolons: Semicolons) {
         self.next_token(); // (
         loop {
             let token_type = match self.get_current_token_type() {
@@ -1273,7 +1289,8 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                 Some(token_type) => token_type,
             };
             match token_type {
-                TT::Op(OK::LParen) => self.parse_parens(),
+                TT::Op(OK::Semicolon) if matches!(semicolons, Semicolons::Excluded) => break,
+                TT::Op(OK::LParen) => self.parse_parens(semicolons),
                 TT::Op(OK::RParen) => {
                     self.next_token(); // )
                     return;
@@ -1285,18 +1302,23 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
             }
         }
     }
-    fn skip_pair(&mut self) {
+
+    fn skip_pair(&mut self, semicolons: Semicolons) {
         let paren_level = self.paren_level;
         let brack_level = self.brack_level;
         let generic_level = self.generic_level;
 
         self.next_token();
-        while (self.paren_level != paren_level
+        while self.paren_level != paren_level
             || self.brack_level != brack_level
-            || self.generic_level != generic_level)
-            && self.get_current_token_type().is_some()
+            || self.generic_level != generic_level
         {
             self.next_token();
+            match self.get_current_token_type() {
+                None => break,
+                Some(TT::Op(OK::Semicolon)) if matches!(semicolons, Semicolons::Excluded) => break,
+                _ => {}
+            }
         }
     }
 
@@ -1328,6 +1350,7 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                 TT::Keyword(keyword_kind @ (KK::Label | KK::Const(_) | KK::Type | KK::Var(_))) => {
                     let context_type = match keyword_kind {
                         KK::Type => ContextType::TypeBlock,
+                        KK::Const(_) => ContextType::ConstBlock,
                         KK::Label => ContextType::LabelBlock,
                         _ => ContextType::DeclarationBlock,
                     };
@@ -1414,11 +1437,11 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                             it is considered to have gone to the next directive.
                         */
                     } else if METHOD_DIRECTIVES_WITH_ARGS.contains(&keyword_kind) {
-                        parser.parse_expression();
+                        parser.parse_expression(Semicolons::Excluded);
                     }
                 }
                 Some(TT::Op(OK::LessThan(_))) => {
-                    parser.skip_pair();
+                    parser.skip_pair(Semicolons::Included);
                 }
                 Some(TT::Op(OK::Semicolon)) => {
                     parser.next_token();
@@ -1502,7 +1525,7 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
     fn parse_property_declaration(&mut self) {
         self.set_logical_line_type(LLT::PropertyDeclaration);
         self.next_token(); // Property
-        self.parse_expression(); // Identifier
+        self.parse_expression(Semicolons::Included); // Identifier
 
         const PROPERTY_DIRECTIVES_WITHOUT_ARGS: [KeywordKind; 3] =
             [KK::ReadOnly, KK::WriteOnly, KK::NoDefault];
@@ -1535,7 +1558,7 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
                     parser.consolidate_current_keyword();
                     parser.next_token();
                     if !PROPERTY_DIRECTIVES_WITHOUT_ARGS.contains(&keyword_kind) {
-                        parser.parse_expression();
+                        parser.parse_expression(Semicolons::Excluded);
                     }
                 }
                 _ => parser.next_token(),
@@ -1549,16 +1572,16 @@ impl<'a, 'b> InternalDelphiLogicalLineParser<'a, 'b> {
         }
         self.finish_logical_line();
     }
-    fn parse_expression(&mut self) {
+    fn parse_expression(&mut self, semicolons: Semicolons) {
         match self.get_current_token_type() {
-            Some(TT::Op(OK::LParen | OK::LBrack)) => self.skip_pair(),
+            Some(TT::Op(OK::LParen | OK::LBrack)) => self.skip_pair(semicolons),
             Some(TT::Op(OK::Semicolon | OK::Colon)) => return,
             Some(token_type @ TT::Keyword(_)) if !is_operator(token_type) => return,
             _ => self.next_token(),
         };
         loop {
             match self.get_current_token_type() {
-                Some(TT::Op(OK::LParen | OK::LBrack)) => self.skip_pair(),
+                Some(TT::Op(OK::LParen | OK::LBrack)) => self.skip_pair(semicolons),
                 Some(TT::Op(OK::Caret(_))) => {
                     self.next_token();
                     return;
@@ -2246,13 +2269,13 @@ fn parse_exports(parser: &mut LLP) {
     match parser.get_current_token_type() {
         Some(TT::Op(OK::Comma)) => {
             parser.next_token(); // ,
-            parser.parse_expression(); // Identifier
+            parser.parse_expression(Semicolons::Excluded); // Identifier
         }
-        Some(TT::Op(OK::LParen)) => parser.skip_pair(),
+        Some(TT::Op(OK::LParen)) => parser.skip_pair(Semicolons::Excluded),
         Some(TT::IdentifierOrKeyword(KK::Name | KK::Index) | TT::Keyword(KK::Name | KK::Index)) => {
             parser.consolidate_current_keyword();
             parser.next_token(); // Name/Index
-            parser.parse_expression(); // Value
+            parser.parse_expression(Semicolons::Excluded); // Value
         }
         Some(TT::IdentifierOrKeyword(KK::Resident) | TT::Keyword(KK::Resident)) => {
             parser.consolidate_current_keyword();
@@ -2306,6 +2329,7 @@ enum ContextType {
     Interface,
     Implementation,
     TypeBlock,
+    ConstBlock,
     VisibilityBlock,
     TypeDeclaration,
     DeclarationBlock,
@@ -2627,6 +2651,12 @@ impl<T> From<NonEmptyVec<T>> for Vec<T> {
         result.push(value.head);
         result
     }
+}
+
+#[derive(Copy, Clone)]
+enum Semicolons {
+    Included,
+    Excluded,
 }
 
 // Tests
