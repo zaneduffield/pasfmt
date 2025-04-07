@@ -1,4 +1,5 @@
 #![deny(clippy::enum_glob_use)]
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 use encoding_rs::Encoding;
 use pasfmt_core::prelude::*;

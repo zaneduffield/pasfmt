@@ -6,6 +6,9 @@ edition = "2021"
 # To allow splitting integration tests into separate files without creating multiple test binaries
 autotests = false
 
+[lints]
+workspace = true
+
 [dependencies]
 encoding_rs = { workspace = true, features = ["serde"] }
 pasfmt-core = { path = "../core" }

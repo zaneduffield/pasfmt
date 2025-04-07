@@ -156,6 +156,7 @@ impl LogicalLinesConsolidator for ConditionalDirectiveConsolidator {
     }
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;

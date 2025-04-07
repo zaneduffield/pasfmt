@@ -18,6 +18,9 @@ default-members = [
 
 resolver = "2"
 
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage_nightly)'] }
+
 [workspace.dependencies]
 anstyle = "1.0.7"
 anyhow = "1.0.83"

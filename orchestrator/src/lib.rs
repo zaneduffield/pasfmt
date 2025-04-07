@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 #![deny(clippy::enum_glob_use)]
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 pub mod command_line;
 pub mod file_formatter;

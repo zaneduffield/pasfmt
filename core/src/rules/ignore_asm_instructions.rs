@@ -18,6 +18,7 @@ impl TokenIgnorer for IgnoreAsmIstructions {
     }
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 #[cfg(test)]
 mod tests {
     use crate::prelude::*;

@@ -1,5 +1,6 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 #![deny(clippy::enum_glob_use)]
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 pub mod defaults;
 pub mod formatter;

@@ -209,6 +209,7 @@ fn space_operator(
     }
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 #[cfg(test)]
 mod tests {
     use crate::{prelude::*, test_utils::formatter_test_group};

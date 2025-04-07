@@ -6,6 +6,9 @@ edition = "2021"
 [features]
 _lang_types_from_str  = ["dep:strum", "dep:strum_macros"]
 
+[lints]
+workspace = true
+
 [dependencies]
 itertools = { workspace = true }
 log = { workspace = true }

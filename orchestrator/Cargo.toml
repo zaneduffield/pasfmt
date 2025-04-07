@@ -3,6 +3,9 @@ name = "pasfmt-orchestrator"
 version = "0.4.0+dev"
 edition = "2021"
 
+[lints]
+workspace = true
+
 [dependencies]
 clap = { workspace = true, features = ["derive", "wrap_help"] }
 encoding_rs = { workspace = true }

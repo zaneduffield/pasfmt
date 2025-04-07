@@ -137,6 +137,7 @@ impl TokenConsolidator for DistinguishGenericTypeParamsConsolidator {
     }
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 #[cfg(test)]
 mod tests {
     use itertools::Itertools;

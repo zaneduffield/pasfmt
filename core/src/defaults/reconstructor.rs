@@ -332,6 +332,7 @@ impl CursorTracker for CursorTrackerImpl<'_> {
     }
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 #[cfg(test)]
 mod tests {
     use crate::prelude::*;

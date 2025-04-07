@@ -1361,6 +1361,7 @@ fn eof(input: &str) -> (&str, LexedToken) {
 
 // endregion: special tokens
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 #[cfg(test)]
 mod tests {
     use super::*;
