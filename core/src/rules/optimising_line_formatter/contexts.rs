@@ -277,7 +277,7 @@ impl SpecificContextDataStack<'_> {
         self.specific_stack
             .ctx_data_iter(self.solution)
             .filter(|(ctx, _)| ctx.is_active_at_token(self.solution.next_line_index))
-            .all(|(_, data)| data.can_break)
+            .all(|(_, data)| data.can_break && data.break_anonymous_routine != Some(false))
     }
 
     pub(super) fn get_last_context<F: ContextFilter + Copy>(

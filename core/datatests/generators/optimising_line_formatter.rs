@@ -4622,6 +4622,20 @@ mod regression {
                 );
                 {$endif}
             ",
+            anon_proc_forced_break_single_child_line = "
+                A :=
+                    procedure
+                    begin
+                      f; //
+                    end;
+                
+                A :=
+                    function
+                    const
+                      C = ''; //
+                    begin
+                    end;
+            ",
         );
     }
 }
