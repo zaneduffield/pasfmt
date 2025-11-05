@@ -94,6 +94,10 @@ jobs:
           </html>
           EOF
 
+      - name: Create .nojekyll file
+        run: |
+          touch .nojekyll
+
       - name: Commit and push changes
         run: |
           git config user.name "github-actions[bot]"
