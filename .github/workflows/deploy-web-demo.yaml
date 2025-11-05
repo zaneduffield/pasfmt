@@ -54,29 +54,29 @@ jobs:
           ref: gh-pages
           fetch-depth: 0
 
-      - name: Download built site
+      - name: Download built site artifact
         uses: actions/download-artifact@v4
         with:
           name: github-pages
-          path: ./_site
+          path: ./
 
-      - name: Copy versioned build into place
+      - name: Extract artifact
         run: |
           VERSION="${GITHUB_REF_NAME}"
+          rm -rf "${VERSION}"
           mkdir -p "${VERSION}"
-          rsync -av --delete ./_site/ "./${VERSION}/"
+          tar -xvf artifact.tar -C "${VERSION}"
+          rm artifact.tar
 
       - name: Update versions.json and root index.html
         run: |
           set -e
           echo "Updating versions.json and root redirect..."
 
-          # Gather all version dirs (sorted newest first)
-          versions=$(ls -1d v* master latest 2>/dev/null | sort -Vr)
-          echo "[$(printf '"%s",' $versions | sed 's/,$//')]" > versions.json
+          readarray -r versions < <(find . -mindepth 1 -maxdepth 1 -type d | sort -Vr)
+          echo "[$(printf '"%s",' "${versions[@]}" | sed 's/,$//')]" > versions.json
 
-          # Find the newest tagged version (starting with 'v')
-          latest_tag=$(ls -1d v* 2>/dev/null | sort -Vr | head -n1)
+          latest_tag=${versions[0]}
           if [ -z "$latest_tag" ]; then
             latest_tag="master"
           fi
