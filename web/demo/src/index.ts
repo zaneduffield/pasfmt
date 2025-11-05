@@ -18,6 +18,8 @@ import "monaco-editor/esm/vs/editor/contrib/inlineEdits/browser/inlineEdits.cont
 import "monaco-editor/esm/vs/editor/contrib/hover/browser/hoverContribution.js";
 import "monaco-editor/esm/vs/editor/contrib/wordOperations/browser/wordOperations.js";
 
+const base: string = import.meta.env.BASE_URL;
+
 // custom delphi tokenizer
 import * as delphi from "./delphi";
 
@@ -253,7 +255,7 @@ if (source !== null) {
   let decoded = atob(source);
   originalEditor.setValue(decoded);
 } else {
-  loadSampleFile("/pasfmt/examples/simple.pas");
+  loadSampleFile(`${base}examples/simple.pas`);
 }
 
 if (settings !== null) {
@@ -270,5 +272,17 @@ shareExample.onclick = () => {
   window.history.replaceState(null, "", url);
   navigator.clipboard.writeText(window.location.href);
 };
+
+fetch(`${base}versions.json`)
+  .then((res) => res.json())
+  .then((versions) => {
+    const select = document.getElementById("version-picker")!;
+    versions.forEach((v: string) => {
+      const opt = document.createElement("option");
+      opt.value = v;
+      opt.textContent = v;
+      select.appendChild(opt);
+    });
+  });
 
 formatEditors();

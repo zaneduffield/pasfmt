@@ -47,7 +47,7 @@ export default defineConfig({
   server: {
     fs: {
       // the wasm files are up one level
-      allow: [".."],
+      allow: ["versions.json", ".."],
     },
   },
   base: "/pasfmt/",
