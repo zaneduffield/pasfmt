@@ -22,6 +22,7 @@ const base: string = import.meta.env.BASE_URL;
 
 // custom delphi tokenizer
 import * as delphi from "./delphi";
+import { version } from "os";
 
 await init();
 
@@ -273,16 +274,28 @@ shareExample.onclick = () => {
   navigator.clipboard.writeText(window.location.href);
 };
 
-fetch(`${base}versions.json`)
+const versionPicker = document.getElementById(
+  "version-picker"
+)! as HTMLSelectElement;
+
+fetch(`${base}../versions.json`)
   .then((res) => res.json())
   .then((versions) => {
-    const select = document.getElementById("version-picker")!;
     versions.forEach((v: string) => {
       const opt = document.createElement("option");
       opt.value = v;
       opt.textContent = v;
-      select.appendChild(opt);
+      versionPicker.appendChild(opt);
     });
   });
+
+const loadVersion = async () => {
+  var version = versionPicker.value;
+  if (version) {
+    window.location.href = base + version
+  }
+};
+
+versionPicker.addEventListener("change", loadVersion);
 
 formatEditors();
