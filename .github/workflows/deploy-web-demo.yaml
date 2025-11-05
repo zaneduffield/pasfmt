@@ -41,11 +41,63 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: build
+    permissions:
+      contents: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          fetch-depth: 0
+
+      - name: Download built site
+        uses: actions/download-artifact@v4
+        with:
+          name: github-pages
+          path: ./_site
+
+      - name: Copy versioned build into place
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          mkdir -p "${VERSION}"
+          rsync -av --delete ./_site/ "./${VERSION}/"
+
+      - name: Update versions.json and root index.html
+        run: |
+          set -e
+          echo "Updating versions.json and root redirect..."
+
+          # Gather all version dirs (sorted newest first)
+          versions=$(ls -1d v* master latest 2>/dev/null | sort -Vr)
+          echo "[$(printf '"%s",' $versions | sed 's/,$//')]" > versions.json
+
+          # Find the newest tagged version (starting with 'v')
+          latest_tag=$(ls -1d v* 2>/dev/null | sort -Vr | head -n1)
+          if [ -z "$latest_tag" ]; then
+            latest_tag="master"
+          fi
+
+          # Write redirect HTML
+          cat > index.html <<EOF
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <meta http-equiv="refresh" content="0; url=/${{ github.event.repository.name }}/$latest_tag/">
+            </head>
+            <body>
+              <a href="/${{ github.event.repository.name }}/$latest_tag/">Redirecting to latest version...</a>
+            </body>
+          </html>
+          EOF
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Deploy ${GITHUB_REF_NAME}" || echo "No changes to commit"
+          git push origin gh-pages
