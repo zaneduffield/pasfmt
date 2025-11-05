@@ -73,7 +73,7 @@ jobs:
           set -e
           echo "Updating versions.json and root redirect..."
 
-          readarray -t versions < <(find . -mindepth 1 -maxdepth 1 -type d | sort -Vr)
+          readarray -t versions < <(find . -mindepth 1 -maxdepth 1 -type d -not -name '.*' | sort -Vr)
           echo "[$(printf '"%s",' "${versions[@]}" | sed 's/,$//')]" > versions.json
 
           latest_tag=${versions[0]}
