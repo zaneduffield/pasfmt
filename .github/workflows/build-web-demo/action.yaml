@@ -33,4 +33,4 @@ runs:
       shell: sh
       run: |
         cd web/demo
-        npx vite build --base="/pasfmt/${{ GITHUB_REF_NAME }}/"
+        npx vite build --base="/pasfmt/${GITHUB_REF_NAME}/"
