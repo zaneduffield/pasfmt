@@ -28,9 +28,12 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.set-version.outputs.VERSION }}
 
     steps:
       - name: Determine version
+        id: set-version
         run: |
           VERSION="${{ github.event.inputs.git_ref || github.ref_name }}"
           echo "VERSION=$VERSION" >> $GITHUB_ENV
