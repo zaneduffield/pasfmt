@@ -14,4 +14,6 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Build Web Demo
+        environment:
+          VERSION: dummy
         uses: ./.github/workflows/build-web-demo/
