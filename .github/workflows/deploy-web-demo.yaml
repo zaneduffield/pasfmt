@@ -81,28 +81,21 @@ jobs:
           ref: gh-pages
           fetch-depth: 0
 
-      - name: Download built site artifact
+      - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          name: 'vite'
-          path: ./vite.tar
-
-      - name: Download wasm-pack artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: 'wasm'
-          path: ./wasm.tar
+          path: ./
 
       - name: Extract artifact
         run: |
           WASM_DIR=pkg/${VERSION:?}
           rm -rf "$WASM_DIR"
           mkdir -p "$WASM_DIR"
-          tar -xvf wasm.tar -C "$WASM_DIR"
-          rm wasm.tar
+          tar -xvf wasm/artifact.tar -C "$WASM_DIR"
+          rm wasm/artifact.tar
 
-          tar -xvf vite.tar
-          rm vite.tar
+          tar -xvf vite/artifact.tar
+          rm vite/artifact.tar
 
 
       - name: Update versions.json and root index.html
