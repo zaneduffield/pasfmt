@@ -3,6 +3,10 @@ name: Build and Deploy Web Demo to GitHub Pages
 on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
+    inputs:
+      git_ref:
+        description: 'The git ref to checkout and build'
+        required: false
 
   push:
     branches:
@@ -28,6 +32,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.git_ref || github.ref_name }}
 
       - name: Build Web Demo
         uses: ./.github/workflows/build-web-demo/
