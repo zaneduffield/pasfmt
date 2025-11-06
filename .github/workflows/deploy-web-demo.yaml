@@ -88,11 +88,12 @@ jobs:
 
       - name: Extract artifact
         run: |
-          WASM_DIR=pkg/${VERSION:?}
-          rm -rf "$WASM_DIR"
-          mkdir -p "$WASM_DIR"
-          tar -xvf wasm/artifact.tar -C "$WASM_DIR"
+          PKG_DIR=pkg/${VERSION:?}
+          rm -rf "$PKG_DIR"
+          mkdir -p "$PKG_DIR"
+          tar -xvf wasm/artifact.tar -C "$PKG_DIR"
           rm wasm/artifact.tar
+          find pkg
 
           tar -xvf vite/artifact.tar
           rm vite/artifact.tar
@@ -103,7 +104,7 @@ jobs:
           set -e
           echo "Updating versions.json and root redirect..."
 
-          readarray -t versions < <(find . -mindepth 1 -maxdepth 1 -type d -not -name '.*' -printf '%P\n' | sort -Vr)
+          readarray -t versions < <(find pkg -mindepth 1 -maxdepth 1 -type d -not -name '.*' -printf '%P\n' | sort -Vr)
           echo "[$(printf '"%s",' "${versions[@]}" | sed 's/,$//')]" > versions.json
 
       - name: Create .nojekyll file
