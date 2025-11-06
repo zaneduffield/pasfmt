@@ -292,7 +292,7 @@ fetch(`${base}../versions.json`)
 const loadVersion = async () => {
   var version = versionPicker.value;
   if (version) {
-    window.location.href = `${base}..${version}`
+    window.location.href = `${base}../${version}`
   }
 };
 
