@@ -1,4 +1,8 @@
-import init, { fmt, default_settings_toml, SettingsWrapper } from "../../pkg";
+// import init, {
+//   fmt,
+//   default_settings_toml,
+//   SettingsWrapper,
+// } from "../public/pkg/web";
 
 import * as monaco from "monaco-editor/esm/vs/editor/editor.api";
 
@@ -22,9 +26,29 @@ const base: string = import.meta.env.BASE_URL;
 
 // custom delphi tokenizer
 import * as delphi from "./delphi";
-import { version } from "os";
 
-await init();
+let pasfmt: any;
+let pasfmt_version: string;
+
+// Load a specific version
+async function loadWasmVersion(version: string) {
+  // Dynamically import the JS glue code
+  let i = import.meta.env.DEV
+    ? import("../../pkg/web.js")
+    : import(/* @vite-ignore */ `${base}pkg/${version}/web.js`);
+
+  await i.then(async (mod) => {
+    console.log(mod);
+    await mod.default();
+
+    console.log(`Loaded wasm-pack version: ${version}`);
+
+    pasfmt = mod;
+    pasfmt_version = version;
+  });
+}
+
+await loadWasmVersion("latest");
 
 const diffEditorContainer = document.getElementById("diffpane")!;
 const sideBySideContainer = document.getElementById("editpane")!;
@@ -55,13 +79,14 @@ const settingsEditor = monaco.editor.create(settingsDiv, {
 const resetDefaultSettingsButton = document.getElementById(
   "resetToDefaultSettings"
 )!;
-const resetSettings = () => settingsEditor.setValue(default_settings_toml());
+const resetSettings = () =>
+  settingsEditor.setValue(pasfmt.default_settings_toml());
 resetSettings();
 resetDefaultSettingsButton.onclick = resetSettings;
 
 const parseSettings = () => {
   try {
-    return new SettingsWrapper(settingsEditor.getValue());
+    return new pasfmt.SettingsWrapper(settingsEditor.getValue());
   } catch (error) {
     throw new Error("Failed to parse settings", {
       cause: error,
@@ -211,7 +236,7 @@ const formatEditors = () => {
   try {
     let settingsObj = parseSettings();
     updateRulers(settingsObj.max_line_len());
-    formattedModel.setValue(fmt(originalModel.getValue(), settingsObj));
+    formattedModel.setValue(pasfmt.fmt(originalModel.getValue(), settingsObj));
   } catch (error) {
     console.log(error);
     renderErrorInModel(error, formattedModel);
@@ -289,13 +314,17 @@ fetch(`${base}../versions.json`)
     });
 
     // extract the last folder segment from the URL
-    versionPicker.value = window.location.pathname.replace(/.*\/([^/]+)\/[^/]*$/, '$1')
+    versionPicker.value = window.location.pathname.replace(
+      /.*\/([^/]+)\/[^/]*$/,
+      "$1"
+    );
   });
 
 const loadVersion = async () => {
   var version = versionPicker.value;
   if (version) {
-    window.location.href = `${base}../${version}`;
+    loadWasmVersion(version);
+    // window.location.href = `${base}../${version}`;
   }
 };
 
