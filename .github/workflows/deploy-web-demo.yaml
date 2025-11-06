@@ -106,24 +106,6 @@ jobs:
           readarray -t versions < <(find . -mindepth 1 -maxdepth 1 -type d -not -name '.*' -printf '%P\n' | sort -Vr)
           echo "[$(printf '"%s",' "${versions[@]}" | sed 's/,$//')]" > versions.json
 
-          latest_tag=${versions[0]}
-          if [ -z "$latest_tag" ]; then
-            latest_tag="master"
-          fi
-
-          # Write redirect HTML
-          cat > index.html <<EOF
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <meta http-equiv="refresh" content="0; url=/${{ github.event.repository.name }}/$latest_tag/">
-            </head>
-            <body>
-              <a href="/${{ github.event.repository.name }}/$latest_tag/">Redirecting to latest version...</a>
-            </body>
-          </html>
-          EOF
-
       - name: Create .nojekyll file
         run: |
           touch .nojekyll
