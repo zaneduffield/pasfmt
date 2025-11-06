@@ -61,10 +61,11 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    env:
-      VERSION: ${{ needs.build.outputs.VERSION }}
 
     steps:
+      - name: Set VERSION environment variable
+        run: echo "VERSION=${{ needs.build.outputs.VERSION }}" >> $GITHUB_ENV
+
       - name: Checkout gh-pages branch
         uses: actions/checkout@v4
         with:
