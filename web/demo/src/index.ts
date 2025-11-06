@@ -287,12 +287,15 @@ fetch(`${base}../versions.json`)
       opt.textContent = v;
       versionPicker.appendChild(opt);
     });
+
+    // extract the last folder segment from the URL
+    versionPicker.value = window.location.pathname.replace(/.*\/([^/]+)\/[^/]*$/, '$1')
   });
 
 const loadVersion = async () => {
   var version = versionPicker.value;
   if (version) {
-    window.location.href = `${base}../${version}`
+    window.location.href = `${base}../${version}`;
   }
 };
 
