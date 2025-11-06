@@ -91,9 +91,8 @@ jobs:
           PKG_DIR=pkg/${VERSION:?}
           rm -rf "$PKG_DIR"
           mkdir -p "$PKG_DIR"
-          tar -xvf wasm/artifact.tar -C "$PKG_DIR"
+          tar -xvf wasm/artifact.tar -C "$PKG_DIR" --wildcards "*.js" "*.wasm"
           rm wasm/artifact.tar
-          find pkg
 
           tar -xvf vite/artifact.tar
           rm vite/artifact.tar
