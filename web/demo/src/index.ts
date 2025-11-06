@@ -31,7 +31,7 @@ let pasfmt: any;
 let pasfmt_version: string;
 
 // Load a specific version
-async function loadWasmVersion(version: string) {
+const loadWasmVersion = async (version: string) => {
   // Dynamically import the JS glue code
   let i = import.meta.env.DEV
     ? import("../../pkg/web.js")
@@ -46,9 +46,31 @@ async function loadWasmVersion(version: string) {
     pasfmt = mod;
     pasfmt_version = version;
   });
-}
+};
 
-await loadWasmVersion("latest");
+const loadVersion = async () => {
+  await loadWasmVersion(versionPicker.value);
+};
+
+const versionPicker = document.getElementById(
+  "version-picker"
+)! as HTMLSelectElement;
+
+await fetch(`${base}versions.json`)
+  .then((res) => res.json())
+  .then((versions: Array<string>) => {
+    versions.forEach((v) => {
+      const opt = document.createElement("option");
+      opt.value = v;
+      opt.textContent = v;
+      versionPicker.appendChild(opt);
+    });
+
+    versionPicker.value = versions[0];
+  })
+  .then(loadVersion);
+
+versionPicker.addEventListener("change", loadVersion);
 
 const diffEditorContainer = document.getElementById("diffpane")!;
 const sideBySideContainer = document.getElementById("editpane")!;
@@ -298,36 +320,5 @@ shareExample.onclick = () => {
   window.history.replaceState(null, "", url);
   navigator.clipboard.writeText(window.location.href);
 };
-
-const versionPicker = document.getElementById(
-  "version-picker"
-)! as HTMLSelectElement;
-
-fetch(`${base}../versions.json`)
-  .then((res) => res.json())
-  .then((versions) => {
-    versions.forEach((v: string) => {
-      const opt = document.createElement("option");
-      opt.value = v;
-      opt.textContent = v;
-      versionPicker.appendChild(opt);
-    });
-
-    // extract the last folder segment from the URL
-    versionPicker.value = window.location.pathname.replace(
-      /.*\/([^/]+)\/[^/]*$/,
-      "$1"
-    );
-  });
-
-const loadVersion = async () => {
-  var version = versionPicker.value;
-  if (version) {
-    loadWasmVersion(version);
-    // window.location.href = `${base}../${version}`;
-  }
-};
-
-versionPicker.addEventListener("change", loadVersion);
 
 formatEditors();
