@@ -34,7 +34,7 @@ jobs:
         run: |
           VERSION="${{ github.event.inputs.git_ref || github.ref_name }}"
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "::set-output name=VERSION::$VERSION"
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Checkout repository
         uses: actions/checkout@v2
