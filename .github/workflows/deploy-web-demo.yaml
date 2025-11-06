@@ -32,6 +32,9 @@ jobs:
       version: ${{ steps.set-version.outputs.VERSION }}
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
       - name: Determine version
         id: set-version
         run: |
@@ -39,14 +42,10 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Checkout repository
-        uses: actions/checkout@v2
-        with:
-          fetch-depth: 0
-          ref: ${{ env.VERSION }}
-
       - name: Build Web Demo
         uses: ./.github/workflows/build-web-demo/
+        with:
+          git_ref: ${{ env.VERSION }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
